@@ -1,20 +1,53 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/router";
 
 const AuthCtx = createContext(null);
 export const useAuth = () => useContext(AuthCtx);
 
+function parseJwt(token) {
+  try { return JSON.parse(atob(token.split(".")[1])); }
+  catch { return null; }
+}
+
+function isTokenValid(token) {
+  if (!token) return false;
+  const payload = parseJwt(token);
+  if (!payload) return false;
+  return payload.exp * 1000 > Date.now();
+}
+
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
+  const [user, setUser]       = useState(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
+  const logout = useCallback(() => {
+    localStorage.removeItem("itam_token");
+    localStorage.removeItem("itam_user");
+    setUser(null);
+    router.push("/login");
+  }, [router]);
+
   useEffect(() => {
     const token = localStorage.getItem("itam_token");
-    const saved  = localStorage.getItem("itam_user");
-    if (token && saved) { try { setUser(JSON.parse(saved)); } catch {} }
+    const saved = localStorage.getItem("itam_user");
+    if (token && saved && isTokenValid(token)) {
+      try { setUser(JSON.parse(saved)); } catch { logout(); }
+    } else if (token) {
+      localStorage.removeItem("itam_token");
+      localStorage.removeItem("itam_user");
+    }
     setLoading(false);
   }, []);
+
+  // Vérification toutes les 5 min
+  useEffect(() => {
+    if (!user) return;
+    const id = setInterval(() => {
+      if (!isTokenValid(localStorage.getItem("itam_token"))) logout();
+    }, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [user, logout]);
 
   useEffect(() => {
     if (!loading && !user && router.pathname !== "/login") router.replace("/login");
@@ -24,13 +57,6 @@ export function AuthProvider({ children }) {
     localStorage.setItem("itam_token", token);
     localStorage.setItem("itam_user", JSON.stringify(userData));
     setUser(userData);
-  };
-
-  const logout = () => {
-    localStorage.removeItem("itam_token");
-    localStorage.removeItem("itam_user");
-    setUser(null);
-    router.push("/login");
   };
 
   if (loading) return (

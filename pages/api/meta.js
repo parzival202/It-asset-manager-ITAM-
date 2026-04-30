@@ -1,9 +1,11 @@
-import { getDb } from "../../lib/db";
+import { getDb, initDb, seedDb } from "../../lib/db";
 import { requireAuth } from "../../lib/auth";
 
 export default async function handler(req, res) {
   const user = await requireAuth(req, res);
   if (!user) return;
+  await initDb();
+  await seedDb();
   const db = getDb();
   const [sites, depts, users] = await Promise.all([
     db.execute("SELECT * FROM sites ORDER BY name"),

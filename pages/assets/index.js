@@ -149,7 +149,11 @@ export default function Assets() {
         {r.assigned_user_title && <div style={{fontSize:11,color:"var(--text3)"}}>{r.assigned_user_title}</div>}
       </div>
     )},
-    { label:"Garantie", accessor:"warranty_end_date", sortable:true, render: r => warrantyBadge(r.warranty_end_date) },
+    { label:"Mise en service", accessor:"deployment_date", sortable:true, render: r => (
+  r.deployment_date
+    ? <span style={{fontSize:13,color:"var(--text2)"}}>{fmtDate(r.deployment_date)}</span>
+    : <span className="text-faint text-xs">—</span>
+)},
     { label:"", key:"actions", render: r => (
       <button className="btn btn-ghost btn-sm" onClick={e => { e.stopPropagation(); setEditing(r); setModal(true); }}>Modifier</button>
     )},

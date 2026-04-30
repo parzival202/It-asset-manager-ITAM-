@@ -1,10 +1,12 @@
-import { getDb } from "../../../lib/db";
+import { getDb, initDb, seedDb } from "../../../lib/db";
 import { requireAuth } from "../../../lib/auth";
 import bcrypt from "bcryptjs";
 
 export default async function handler(req, res) {
   const user = await requireAuth(req, res);
   if (!user) return;
+  await initDb();
+  await seedDb();
   const db = getDb();
 
   if (req.method === "GET") {
@@ -25,7 +27,10 @@ export default async function handler(req, res) {
       sql: "INSERT INTO users (full_name, email, password_hash, role) VALUES (?, ?, ?, ?)",
       args: [full_name, email, hash, role || "technician"]
     });
-    const created = await db.execute({ sql: "SELECT id, full_name, email, role, is_active, created_at FROM users WHERE id = ?", args: [Number(r.lastInsertRowid)] });
+    const created = await db.execute({
+      sql: "SELECT id, full_name, email, role, is_active, created_at FROM users WHERE id = ?",
+      args: [Number(r.lastInsertRowid)]
+    });
     return res.status(201).json(created.rows[0]);
   }
 
