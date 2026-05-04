@@ -42,40 +42,54 @@ export default async function handler(req, res) {
     });
   }
 
-  if (req.method === "PUT") {
-    const body = req.body;
-    // Nettoyer toutes les valeurs undefined/vide
-    const clean = {};
-    for (const [k, v] of Object.entries(body)) {
-      clean[k] = n(v);
-    }
-    // Convertir les champs numériques
-    if (clean.site_id)       clean.site_id       = Number(clean.site_id);
-    if (clean.department_id) clean.department_id = Number(clean.department_id);
-    if (clean.purchase_price) clean.purchase_price = Number(clean.purchase_price);
-    if (clean.maintenance_interval_days) clean.maintenance_interval_days = Number(clean.maintenance_interval_days);
+if (req.method === "PUT") {
+  const body = req.body;
 
-    const sets = Object.keys(clean).map(k => `${k}=?`).join(", ");
-    const vals = [...Object.values(clean), id];
-    try {
-      await db.execute({
-        sql: `UPDATE assets SET ${sets}, updated_at = datetime('now') WHERE id = ?`,
-        args: vals
-      });
-      const updated = await db.execute({
-        sql: `SELECT a.*, s.name as site_name, d.name as department_name
-              FROM assets a
-              LEFT JOIN sites s ON a.site_id = s.id
-              LEFT JOIN departments d ON a.department_id = d.id
-              WHERE a.id = ?`,
-        args: [id]
-      });
-      return res.json(updated.rows[0]);
-    } catch (err) {
-      console.error("PUT /api/assets/[id] error:", err);
-      return res.status(500).json({ error: err.message });
+  // Colonnes autorisées — exclure les champs joints (site_name, department_name, etc.)
+  const ALLOWED = [
+    "asset_tag","name","type","status","brand","model","serial_number",
+    "operating_system","ram","storage","site_id","department_id",
+    "assigned_user_name","assigned_user_title","deployment_date",
+    "purchase_date","purchase_price","supplier","warranty_end_date",
+    "planned_end_of_life","maintenance_interval_days","notes"
+  ];
+
+  const clean = {};
+  for (const key of ALLOWED) {
+    if (key in body) {
+      const v = body[key];
+      clean[key] = (v === undefined || v === "") ? null : v;
     }
   }
+
+  // Convertir les numériques
+  if (clean.site_id)                   clean.site_id = clean.site_id ? Number(clean.site_id) : null;
+  if (clean.department_id)             clean.department_id = clean.department_id ? Number(clean.department_id) : null;
+  if (clean.purchase_price)            clean.purchase_price = clean.purchase_price ? Number(clean.purchase_price) : null;
+  if (clean.maintenance_interval_days) clean.maintenance_interval_days = clean.maintenance_interval_days ? Number(clean.maintenance_interval_days) : 180;
+
+  const sets = Object.keys(clean).map(k => `${k}=?`).join(", ");
+  const vals = [...Object.values(clean), id];
+
+  try {
+    await db.execute({
+      sql: `UPDATE assets SET ${sets}, updated_at = datetime('now') WHERE id = ?`,
+      args: vals
+    });
+    const updated = await db.execute({
+      sql: `SELECT a.*, s.name as site_name, d.name as department_name
+            FROM assets a
+            LEFT JOIN sites s ON a.site_id = s.id
+            LEFT JOIN departments d ON a.department_id = d.id
+            WHERE a.id = ?`,
+      args: [id]
+    });
+    return res.json(updated.rows[0]);
+  } catch (err) {
+    console.error("PUT /api/assets/[id]:", err);
+    return res.status(500).json({ error: err.message });
+  }
+}
 
   if (req.method === "DELETE") {
     if (user.role !== "admin") return res.status(403).json({ error: "Accès refusé" });

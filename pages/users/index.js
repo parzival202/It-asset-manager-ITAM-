@@ -272,7 +272,14 @@ export default function Users() {
           user={editing}
           currentUserId={currentUser.id}
           onClose={() => { setModal(false); setEditing(null); }}
-          onSave={editing ? (data) => update(editing.id, data) : create}
+         onSave={editing ? async (data) => {
+            await update(editing.id, data);
+            if (editing.id === currentUser.id) {
+            const updatedUser = { ...currentUser, name: data.full_name, email: data.email, role: data.role };
+              localStorage.setItem("itam_user", JSON.stringify(updatedUser));
+              window.location.reload();
+         }
+      } : create}
         />
       )}
 

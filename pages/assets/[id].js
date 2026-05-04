@@ -134,12 +134,29 @@ export default function AssetDetail(){
         </div>
         <div className="card">
           <div className="section-title">Affectation actuelle</div>
-          {current?(
-            <div style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:"1px solid var(--border)",marginBottom:4}}>
-              <div style={{width:32,height:32,borderRadius:"50%",background:"var(--accent)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:600,color:"#fff",flexShrink:0}}>{initials(current.user_name)}</div>
-              <div><div style={{fontSize:13,fontWeight:500}}>{current.user_name}</div>{current.user_title&&<div style={{fontSize:11,color:"var(--text3)"}}>{current.user_title}</div>}</div>
-            </div>
-          ):<div className="kv"><span className="kv-label">Utilisateur</span><span style={{fontSize:12,color:"var(--text3)"}}>Non assigné</span></div>}
+          {current ? (
+  <div style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:"1px solid var(--border)",marginBottom:4}}>
+    <div style={{width:32,height:32,borderRadius:"50%",background:"var(--accent)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:600,color:"#fff",flexShrink:0}}>
+      {initials(current.user_name)}
+    </div>
+    <div>
+      <div style={{fontSize:13,fontWeight:500}}>{current.user_name}</div>
+      {current.user_title && <div style={{fontSize:11,color:"var(--text3)"}}>{current.user_title}</div>}
+    </div>
+  </div>
+) : asset.assigned_user_name ? (
+  <div style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:"1px solid var(--border)",marginBottom:4}}>
+    <div style={{width:32,height:32,borderRadius:"50%",background:"var(--bg3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:600,color:"var(--text2)",flexShrink:0}}>
+      {initials(asset.assigned_user_name)}
+    </div>
+    <div>
+      <div style={{fontSize:13,fontWeight:500}}>{asset.assigned_user_name}</div>
+      {asset.assigned_user_title && <div style={{fontSize:11,color:"var(--text3)"}}>{asset.assigned_user_title}</div>}
+    </div>
+  </div>
+) : (
+  <div className="kv"><span className="kv-label">Utilisateur</span><span style={{fontSize:12,color:"var(--text3)"}}>Non assigné</span></div>
+)}
           <KV label="Site" value={asset.site_name}/>
           <KV label="Service" value={asset.department_name}/>
           <KV label="Déployé le" value={fmtDate(asset.deployment_date)}/>
