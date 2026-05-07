@@ -73,7 +73,7 @@ export default function AssetDetail(){
   const {id}=router.query;
   const {asset,loading,reload}=useAsset(id);
   const {maintenances,create:createMaint,update:updateMaint}=useMaintenances({asset_id:id});
-  const {assignments,current,history,loading:assignLoading,create:createAssign,close:closeAssign}=useAssignments(id);
+  const {assignments,current,history,loading:assignLoading,create:createAssign,update: updateAssign,remove: removeAssign}=useAssignments(id);
   const {alertCount}=useAlerts();
   const meta=useMeta();
   const [modal,setModal]=useState(false);
@@ -221,7 +221,16 @@ export default function AssetDetail(){
 
       {/* Historique affectations */}
       <div className="mb-16">
-        <AssignmentTimeline assetId={id} assignments={assignments} current={current} history={history} loading={assignLoading} onCreate={createAssign} onClose={closeAssign}/>
+        <AssignmentTimeline
+  assetId={id}
+  assetName={asset.name}       
+  assignments={assignments}
+  current={current}
+  history={history}
+  loading={assignLoading}
+  onCreate={createAssign}
+  onUpdate={updateAssign}      
+  onDelete={removeAssign}/>
       </div>
 
       {/* Notes */}
