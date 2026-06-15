@@ -4,7 +4,7 @@ import Layout from "../components/Layout";
 import { api } from "../lib/api";
 import { PLANNING_2025, MONTH_NAMES, getCurrentMonth, getCurrentWeek } from "../lib/planningData";
 
-const TYPE_LABELS   = { laptop:"Laptop", screen:"Ecran", uc:"UC", printer:"Imprimante" };
+const TYPE_LABELS   = { laptop:"Laptop", screen:"Ecran", uc:"UC", printer:"Imprimante", all_in_one:"All-in-one" };
 const STATUS_COLORS = { in_service:"success", maintenance:"warning", retired:"neutral", storage:"info" };
 const STATUS_LABELS = { in_service:"En service", maintenance:"En maintenance", retired:"Retiré", storage:"En stock" };
 const MAINT_TYPES   = { preventive:"Préventive", corrective:"Corrective", replacement:"Remplacement", deployment:"Déploiement" };

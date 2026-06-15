@@ -23,7 +23,7 @@ function daysFrom(d) {
   return `dans ${n} jours`;
 }
 
-const TYPE_LABELS   = { laptop:"Laptop", screen:"Ecran", uc:"UC", printer:"Imprimante" };
+const TYPE_LABELS   = { laptop:"Laptop", screen:"Ecran", uc:"UC", printer:"Imprimante", all_in_one:"All-in-one" };
 const STATUS_LABELS = { in_service:"En service", maintenance:"En maintenance", retired:"Retiré", storage:"En stock" };
 const STATUS_COLORS = { in_service:"var(--success)", maintenance:"var(--warning)", retired:"var(--text3)", storage:"var(--info)" };
 const MAINT_STATUS_COLORS = { planned:"var(--info)", in_progress:"var(--warning)", completed:"var(--success)" };
@@ -330,7 +330,7 @@ export default function Stats() {
               parc.bytype.map(r => ({
                 label: TYPE_LABELS[r.type] || r.type,
                 value: Number(r.count),
-                color: r.type==="laptop"?"var(--accent)":r.type==="screen"?"var(--info)":r.type==="printer"?"var(--warning)":"var(--success)",
+                color: r.type==="laptop"?"var(--accent)":r.type==="screen"?"var(--info)":r.type==="printer"?"var(--warning)":r.type==="all_in_one"?"var(--accent2)":"var(--success)",
               }))
             }/>
           </div>
