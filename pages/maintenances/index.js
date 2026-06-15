@@ -370,7 +370,7 @@ export default function Maintenances() {
       render: r => (
         <div style={{display:"flex",gap:6}}>
           <button className="btn btn-ghost btn-sm" onClick={e=>{e.stopPropagation();setEditing(r);setModal(true);}}>Modifier</button>
-          {["planned","in_progress"].includes(r.status) && (
+          {["planned","in_progress","overdue"].includes(r.status) && (
             <button className="btn btn-ghost btn-sm" onClick={e=>{e.stopPropagation();markDone(r.id);}}>✓ Terminer</button>
           )}
         </div>
