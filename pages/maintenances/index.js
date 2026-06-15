@@ -14,10 +14,16 @@ const STATUS_LABELS = { planned:"Planifiée", in_progress:"En cours", completed:
 
 function fmtDate(d) { if (!d) return "—"; return new Date(d).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}); }
 function n(v) { return (v===undefined||v==="") ? null : v; }
+function dateInput(d) { return d ? String(d).slice(0, 10) : ""; }
 
-// ── Modal ajout maintenance manuelle ──────────────────────────────────
-function MaintModal({ onClose, onSave, assets, meta }) {
-  const [form, setForm] = useState({ type:"preventive", status:"planned" });
+// ── Modal ajout / modification maintenance ────────────────────────────
+function MaintModal({ maintenance, onClose, onSave, assets, meta }) {
+  const isEdit = !!maintenance;
+  const [form, setForm] = useState(maintenance ? {
+    ...maintenance,
+    scheduled_date: dateInput(maintenance.scheduled_date),
+    end_date: dateInput(maintenance.end_date),
+  } : { type:"preventive", status:"planned" });
   const [loading, setLoad] = useState(false);
   const [error, setError]  = useState("");
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
@@ -37,6 +43,7 @@ function MaintModal({ onClose, onSave, assets, meta }) {
         replacement_part: n(form.replacement_part),
         resolution_notes: n(form.resolution_notes),
         cost: n(form.cost)?Number(form.cost):null,
+        completed_at: form.status === "completed" ? n(form.completed_at) : null,
         source: "manual",
       });
       onClose();
@@ -50,7 +57,7 @@ function MaintModal({ onClose, onSave, assets, meta }) {
     <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
       <div className="modal">
         <div className="modal-header">
-          <h3>Nouvelle maintenance</h3>
+          <h3>{isEdit ? "Modifier la maintenance" : "Nouvelle maintenance"}</h3>
           <button onClick={onClose} style={{background:"none",border:"none",color:"var(--text2)",cursor:"pointer",fontSize:20}}>×</button>
         </div>
         <form onSubmit={submit}>
@@ -125,7 +132,7 @@ function MaintModal({ onClose, onSave, assets, meta }) {
           </div>
           <div className="modal-footer">
             <button type="button" className="btn btn-ghost" onClick={onClose}>Annuler</button>
-            <button type="submit" className="btn btn-primary" disabled={loading}>{loading?"Enregistrement...":"Créer"}</button>
+            <button type="submit" className="btn btn-primary" disabled={loading}>{loading?"Enregistrement...":isEdit?"Modifier":"Créer"}</button>
           </div>
         </form>
       </div>
@@ -303,10 +310,11 @@ export default function Maintenances() {
   const [tab, setTab]         = useState("list");
   const [filters, setFilters] = useState({ status:"", type:"" });
   const [modal, setModal]     = useState(false);
+  const [editing, setEditing] = useState(null);
   const [generating, setGen]  = useState(false);
   const [scheduleTickets, setScheduleTickets] = useState([]);
   const [mounted, setMounted] = useState(false);
-  const { maintenances, loading, create, markDone } = useMaintenances(filters);
+  const { maintenances, loading, create, update, markDone } = useMaintenances(filters);
   const { alertCount }        = useAlerts();
   const meta                  = useMeta();
   const { assets }            = useAssets({});
@@ -327,6 +335,11 @@ export default function Maintenances() {
       alert("Tickets générés avec succès ! Les alertes ont été mises à jour.");
     } catch(err) { alert(err.message); }
     finally { setGen(false); }
+  }
+
+  async function handleSave(form) {
+    if (editing) await update(editing.id, form);
+    else await create(form);
   }
 
   // Compter les maintenances en cours (planifiées + générées par planning + overdue)
@@ -352,12 +365,22 @@ export default function Maintenances() {
     { label:"Début",      accessor:"scheduled_date", sortable:true, render: r=>fmtDate(r.scheduled_date) },
     { label:"Fin prévue", accessor:"end_date",       sortable:true, render: r=>fmtDate(r.end_date) },
     { label:"Statut",     accessor:"status",         sortable:true, render: r=><span className={`badge badge-${STATUS_COLORS[r.status]||"neutral"}`}>{STATUS_LABELS[r.status]||r.status}</span> },
-    { label:"", key:"actions", render: r=>(["planned","in_progress"].includes(r.status))&&<button className="btn btn-ghost btn-sm" onClick={e=>{e.stopPropagation();markDone(r.id);}}>✓ Terminer</button> },
+    {
+      label:"", key:"actions",
+      render: r => (
+        <div style={{display:"flex",gap:6}}>
+          <button className="btn btn-ghost btn-sm" onClick={e=>{e.stopPropagation();setEditing(r);setModal(true);}}>Modifier</button>
+          {["planned","in_progress"].includes(r.status) && (
+            <button className="btn btn-ghost btn-sm" onClick={e=>{e.stopPropagation();markDone(r.id);}}>✓ Terminer</button>
+          )}
+        </div>
+      )
+    },
   ];
 
   return (
     <Layout title="Maintenances" alertCount={alertCount} actions={
-      <button className="btn btn-primary" onClick={()=>setModal(true)}>
+      <button className="btn btn-primary" onClick={()=>{setEditing(null);setModal(true);}}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
         Ajouter
       </button>
@@ -413,7 +436,7 @@ export default function Maintenances() {
         />
       )}
 
-      {modal && <MaintModal assets={assets} meta={meta} onClose={()=>setModal(false)} onSave={create}/>}
+      {modal && <MaintModal maintenance={editing} assets={assets} meta={meta} onClose={()=>{setModal(false);setEditing(null);}} onSave={handleSave}/>}
     </Layout>
   );
 }
