@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import Layout from "../../components/Layout";
-import { useAlerts } from "../../hooks/useAlerts";
-import { api } from "../../lib/api";
+import Layout from "./Layout";
+import { useAlerts } from "../hooks/useAlerts";
+import { api } from "../lib/api";
 
 // ── Helpers ───────────────────────────────────────────────────────────
 function fmtDate(d) {
@@ -26,8 +26,8 @@ function daysFrom(d) {
 const TYPE_LABELS   = { laptop:"Laptop", screen:"Ecran", uc:"UC", printer:"Imprimante", all_in_one:"All-in-one" };
 const STATUS_LABELS = { in_service:"En service", maintenance:"En maintenance", retired:"Retiré", storage:"En stock" };
 const STATUS_COLORS = { in_service:"var(--success)", maintenance:"var(--warning)", retired:"var(--text3)", storage:"var(--info)" };
-const MAINT_STATUS_COLORS = { planned:"var(--info)", in_progress:"var(--warning)", completed:"var(--success)" };
-const MAINT_STATUS_LABELS = { planned:"Planifiée", in_progress:"En cours", completed:"Terminée" };
+const MAINT_STATUS_COLORS = { planned:"var(--info)", in_progress:"var(--warning)", overdue:"var(--danger)", completed:"var(--success)" };
+const MAINT_STATUS_LABELS = { planned:"Planifiée", in_progress:"En cours", overdue:"En retard", completed:"Terminée" };
 
 // ── Composants graphiques purs CSS/SVG ────────────────────────────────
 
@@ -175,7 +175,7 @@ function LineChart({ data, months }) {
 }
 
 // ── Page principale ───────────────────────────────────────────────────
-export default function Stats() {
+export default function DashboardStats({ title = "Dashboard" }) {
   const router = useRouter();
   const { alertCount } = useAlerts();
   const [data, setData]     = useState(null);
@@ -189,13 +189,13 @@ export default function Stats() {
   }, [mounted]);
 
   if (loading) return (
-    <Layout title="Statistiques" alertCount={alertCount}>
+    <Layout title={title} alertCount={alertCount}>
       <div style={{ display:"flex", justifyContent:"center", padding:80 }}><div className="spinner"/></div>
     </Layout>
   );
 
   if (!data) return (
-    <Layout title="Statistiques" alertCount={alertCount}>
+    <Layout title={title} alertCount={alertCount}>
       <div className="card"><div className="empty-state"><p>Impossible de charger les statistiques</p></div></div>
     </Layout>
   );
@@ -226,7 +226,7 @@ export default function Stats() {
     : null;
 
   return (
-    <Layout title="Statistiques" alertCount={alertCount}>
+    <Layout title={title} alertCount={alertCount}>
 
       {/* ── KPIs rapides ─────────────────────────────────────── */}
       <div className="stats-grid mb-20">

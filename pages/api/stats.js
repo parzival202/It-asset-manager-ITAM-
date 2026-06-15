@@ -46,7 +46,7 @@ export default async function handler(req, res) {
     SELECT m.*, a.name as asset_name, a.asset_tag
     FROM maintenances m
     LEFT JOIN assets a ON m.asset_id = a.id
-    WHERE m.status IN ('planned', 'in_progress')
+    WHERE m.status IN ('planned', 'in_progress', 'overdue')
     ORDER BY COALESCE(m.scheduled_date, m.created_at) ASC
   `);
 
@@ -104,7 +104,7 @@ export default async function handler(req, res) {
   const totals = await db.execute(`
     SELECT
       (SELECT COUNT(*) FROM assets) as total_assets,
-      (SELECT COUNT(*) FROM maintenances WHERE status IN ('planned','in_progress')) as maint_pending,
+      (SELECT COUNT(*) FROM maintenances WHERE status IN ('planned','in_progress','overdue')) as maint_pending,
       (SELECT COUNT(*) FROM maintenances WHERE status='planned' AND scheduled_date <= date('now','+14 days') AND scheduled_date >= date('now')) as maint_upcoming,
       (SELECT COUNT(*) FROM interventions WHERE status IN ('in_progress','planned')) as interv_pending,
       (SELECT COUNT(*) FROM maintenances WHERE type='preventive' AND status='completed') as prev_done,
