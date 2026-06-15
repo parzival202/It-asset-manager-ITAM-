@@ -1,5 +1,6 @@
 import { getDb } from "../../../lib/db";
 import { requireAuth } from "../../../lib/auth";
+import { syncMaintenanceAlerts } from "../../../lib/maintenanceAlerts";
 
 export default async function handler(req, res) {
   const user = await requireAuth(req, res);
@@ -7,6 +8,7 @@ export default async function handler(req, res) {
   const db = getDb();
 
   if (req.method === "GET") {
+    await syncMaintenanceAlerts(db);
     const result = await db.execute(`
       SELECT al.*, a.name as asset_name, a.asset_tag
       FROM alerts al
