@@ -6,7 +6,7 @@ import { useAlerts } from "../../hooks/useAlerts";
 import { useMeta } from "../../hooks/useMeta";
 import { useAssets } from "../../hooks/useAssets";
 import { api } from "../../lib/api";
-import { PLANNING_2025, MONTHS, MONTH_NAMES, getCurrentMonth, getCurrentWeek } from "../../lib/planningData";
+import { PLANNING_2025, MONTH_NAMES } from "../../lib/planningData";
 
 const MAINT_TYPES   = { preventive:"Préventive", corrective:"Corrective", replacement:"Remplacement", deployment:"Déploiement" };
 const STATUS_COLORS = { planned:"info", in_progress:"warning", completed:"success", cancelled:"neutral", overdue:"danger" };
@@ -140,171 +140,174 @@ function MaintModal({ maintenance, onClose, onSave, assets, meta }) {
   );
 }
 
-// ── Vue calendrier avec alertes planning ───────────────────────────────
-function CalendarView({ scheduleTickets, onGenerate, generating }) {
-  const cm = getCurrentMonth();
-  const cw = getCurrentWeek();
-  const nowAbs = (cm-1)*4+cw;
-  const WEEKS = [1,2,3,4];
+const WEEKDAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
-  // Indexer les tickets par dept_name
+function startOfDay(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function sameDay(a, b) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function monthDayCount(year, month) {
+  return new Date(year, month, 0).getDate();
+}
+
+function planRange(year, entry) {
+  const startDay = (entry.week_start - 1) * 7 + 1;
+  const endDay = Math.min(monthDayCount(year, entry.month), startDay + entry.duration * 7 - 1);
+  return {
+    start: startOfDay(new Date(year, entry.month - 1, startDay)),
+    end: startOfDay(new Date(year, entry.month - 1, endDay)),
+    startDay,
+    endDay,
+  };
+}
+
+function entriesForDay(date, ticketByDept) {
+  const day = startOfDay(date);
+  return PLANNING_2025
+    .filter(entry => entry.month === day.getMonth() + 1)
+    .map(entry => ({ entry, range: planRange(day.getFullYear(), entry), ticket: ticketByDept[entry.dept_name] }))
+    .filter(item => day >= item.range.start && day <= item.range.end);
+}
+
+function statusInfo(item, today) {
+  const status = item.ticket?.status;
+  if (status === "completed") return { label: "Terminée", badge: "success", bg: "rgba(52,211,153,0.14)", border: "rgba(52,211,153,0.35)" };
+  if (status === "overdue") return { label: "En retard", badge: "danger", bg: "rgba(248,113,113,0.14)", border: "rgba(248,113,113,0.35)" };
+  if (status === "in_progress") return { label: "En cours", badge: "warning", bg: "rgba(251,191,36,0.14)", border: "rgba(251,191,36,0.35)" };
+  if (today >= item.range.start && today <= item.range.end) return { label: "Cette période", badge: "info", bg: "rgba(79,142,247,0.16)", border: "rgba(79,142,247,0.42)" };
+  if (today > item.range.end) return { label: "Passée", badge: "neutral", bg: "rgba(148,163,184,0.10)", border: "rgba(148,163,184,0.24)" };
+  return { label: "Planifiée", badge: "info", bg: "rgba(96,165,250,0.10)", border: "rgba(96,165,250,0.30)" };
+}
+
+// ── Vue agenda réel avec alertes planning ──────────────────────────────
+function CalendarView({ scheduleTickets, onGenerate, generating }) {
+  const today = startOfDay(new Date());
+  const [viewDate, setViewDate] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth() + 1;
+  const daysInView = monthDayCount(year, month);
+  const firstDay = new Date(year, month - 1, 1);
+  const leadingBlankDays = (firstDay.getDay() + 6) % 7;
+  const totalCells = Math.ceil((leadingBlankDays + daysInView) / 7) * 7;
+
   const ticketByDept = {};
-  (scheduleTickets||[]).forEach(t => { ticketByDept[t.dept_name] = t; });
+  (scheduleTickets || []).forEach(t => { ticketByDept[t.dept_name] = t; });
+
+  const cells = Array.from({ length: totalCells }, (_, index) => {
+    const dayNumber = index - leadingBlankDays + 1;
+    if (dayNumber < 1 || dayNumber > daysInView) return null;
+    return new Date(year, month - 1, dayNumber);
+  });
+
+  const monthPlans = PLANNING_2025
+    .filter(entry => entry.month === month)
+    .map(entry => ({ entry, range: planRange(year, entry), ticket: ticketByDept[entry.dept_name] }));
+
+  const goMonth = offset => setViewDate(d => new Date(d.getFullYear(), d.getMonth() + offset, 1));
+  const goToday = () => setViewDate(new Date(today.getFullYear(), today.getMonth(), 1));
 
   return (
     <div>
-      {/* Bouton générer */}
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,marginBottom:16,flexWrap:"wrap"}}>
         <div>
           <div style={{fontSize:13,color:"var(--text2)"}}>
-            Planification automatique des maintenances préventives 2025.
-            Chaque service génère un ticket lié au département.
+            Agenda réel des maintenances préventives {year}. Les services sont placés sur les jours couverts par leur semaine de planning.
           </div>
         </div>
         <button className="btn btn-primary" onClick={onGenerate} disabled={generating}>
-          {generating ? "Génération..." : "⚡ Générer les tickets 2025"}
+          {generating ? "Génération..." : `⚡ Générer les tickets ${today.getFullYear()}`}
         </button>
       </div>
 
-      {/* Alertes imminentes */}
-      {PLANNING_2025.filter(p => {
-        const s=(p.month-1)*4+p.week_start, e=s+p.duration-1;
-        const diff = s - nowAbs;
-        return diff >= 0 && diff <= 14;
-      }).map(p => {
-        const s=(p.month-1)*4+p.week_start;
-        const diff = s - nowAbs;
-        const ticket = ticketByDept[p.dept_name];
-        const isDone = ticket?.status === "completed";
-        if (isDone) return null;
-        return (
-          <div key={p.dept_name} style={{
-            display:"flex",alignItems:"center",gap:12,padding:"10px 14px",marginBottom:8,borderRadius:6,
-            background: diff<=3?"rgba(248,113,113,0.08)":diff<=7?"rgba(251,191,36,0.08)":"rgba(96,165,250,0.08)",
-            border: `1px solid ${diff<=3?"rgba(248,113,113,0.25)":diff<=7?"rgba(251,191,36,0.25)":"rgba(96,165,250,0.25)"}`,
-          }}>
-            <div style={{width:8,height:8,borderRadius:"50%",flexShrink:0,
-              background:diff<=3?"var(--danger)":diff<=7?"var(--warning)":"var(--info)"}}/>
-            <span style={{fontSize:13,fontWeight:500}}>{p.dept_name}</span>
-            <span style={{fontSize:12,color:"var(--text2)",flex:1}}>
-              — {MONTH_NAMES[p.month-1]} S{p.week_start}
-            </span>
-            <span className={`badge badge-${diff<=3?"danger":diff<=7?"warning":"info"}`} style={{fontSize:11}}>
-              {diff===0?"Cette semaine":diff<=3?`Dans ${diff} sem.`:diff<=7?"Dans 1 sem.":"Dans 2 sem."}
-            </span>
-            {ticket && <span className={`badge badge-${STATUS_COLORS[ticket.status]||"neutral"}`} style={{fontSize:10}}>{STATUS_LABELS[ticket.status]}</span>}
+      <div className="card" style={{padding:0,overflow:"hidden"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"14px 16px",borderBottom:"1px solid var(--border)",flexWrap:"wrap"}}>
+          <div>
+            <div style={{fontSize:18,fontWeight:700}}>{MONTH_NAMES[month - 1]} {year}</div>
+            <div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>
+              {monthPlans.length} service{monthPlans.length>1?"s":""} programmé{monthPlans.length>1?"s":""} ce mois-ci
+            </div>
           </div>
-        );
-      }).filter(Boolean)}
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <button className="btn btn-ghost btn-sm" onClick={() => goMonth(-1)} aria-label="Mois précédent">‹</button>
+            <button className="btn btn-ghost btn-sm" onClick={goToday}>Aujourd'hui</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => goMonth(1)} aria-label="Mois suivant">›</button>
+          </div>
+        </div>
 
-      {/* Grille Gantt */}
-      <div className="card" style={{padding:0,overflowX:"auto",marginTop:16}}>
-        <table style={{width:"100%",borderCollapse:"collapse",minWidth:860,tableLayout:"fixed"}}>
-          <colgroup>
-            <col style={{width:200}}/>
-            {MONTHS.map((_,mi)=>WEEKS.map((_,wi)=>(
-              <col key={`${mi}-${wi}`} style={{width:16}}/>
-            )))}
-          </colgroup>
-          <thead>
-            <tr>
-              <th style={{padding:"8px 12px",background:"var(--bg3)",fontSize:11,fontWeight:600,color:"var(--text3)",textTransform:"uppercase",borderBottom:"1px solid var(--border)",textAlign:"left"}}>Service</th>
-              {MONTHS.map((m,mi)=>(
-                <th key={mi} colSpan={4} style={{
-                  padding:"6px 2px",textAlign:"center",
-                  background:mi+1===cm?"rgba(79,142,247,0.08)":"var(--bg3)",
-                  fontSize:10,fontWeight:600,
-                  color:mi+1===cm?"var(--accent)":"var(--text3)",
-                  textTransform:"uppercase",borderBottom:"1px solid var(--border)",
-                  borderLeft:"1px solid var(--border)",
-                }}>{m}</th>
-              ))}
-            </tr>
-            <tr>
-              <th style={{background:"var(--bg3)",borderBottom:"1px solid var(--border)"}}/>
-              {MONTHS.map((_,mi)=>WEEKS.map(w=>(
-                <th key={`${mi}-${w}`} style={{
-                  padding:"2px 0",fontSize:8,fontWeight:400,color:"var(--text3)",
-                  background:mi+1===cm?"rgba(79,142,247,0.04)":"var(--bg3)",
-                  borderBottom:"1px solid var(--border)",
-                  borderLeft:w===1?"1px solid var(--border)":"none",textAlign:"center",
-                }}>{w===1||w===3?`S${w}`:""}</th>
-              )))}
-            </tr>
-          </thead>
-          <tbody>
-            {PLANNING_2025.map((entry,ri)=>{
-              const startAbs=(entry.month-1)*4+entry.week_start;
-              const endAbs=startAbs+entry.duration-1;
-              const isDone=nowAbs>endAbs;
-              const isCurrent=startAbs<=nowAbs&&endAbs>=nowAbs;
-              const isNext=startAbs>nowAbs&&startAbs<=nowAbs+8;
-              const ticket=ticketByDept[entry.dept_name];
-              const ticketStatus=ticket?.status;
-
-              let color = "rgba(96,165,250,0.06)";
-              let border = "transparent";
-              if (ticketStatus==="completed") { color="rgba(52,211,153,0.15)"; border="var(--success)"; }
-              else if (ticketStatus==="overdue") { color="rgba(248,113,113,0.15)"; border="var(--danger)"; }
-              else if (isCurrent) { color="rgba(79,142,247,0.2)"; border="var(--accent)"; }
-              else if (isDone&&!ticket) { color="rgba(52,211,153,0.08)"; border="var(--success)"; }
-              else if (isNext) { color="rgba(251,191,36,0.12)"; border="var(--warning)"; }
-
-              return (
-                <tr key={`${entry.dept_name}-${entry.month}`} style={{background:ri%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
-                  <td style={{padding:"4px 12px",fontSize:11,fontWeight:500,color:"var(--text2)",borderBottom:"1px solid var(--border)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:6}}>
-                      {isCurrent&&<div style={{width:5,height:5,borderRadius:"50%",background:"var(--accent)",flexShrink:0}}/>}
-                      {entry.dept_name}
-                      {ticketStatus==="completed"&&<span style={{fontSize:9,background:"rgba(52,211,153,0.15)",color:"var(--success)",padding:"1px 4px",borderRadius:3}}>✓</span>}
-                      {ticketStatus==="overdue"&&<span style={{fontSize:9,background:"rgba(248,113,113,0.15)",color:"var(--danger)",padding:"1px 4px",borderRadius:3}}>!</span>}
-                    </div>
-                  </td>
-                  {MONTHS.map((_,mi)=>WEEKS.map(w=>{
-                    const cellAbs=mi*4+w;
-                    const inRange=cellAbs>=startAbs&&cellAbs<=endAbs;
-                    const isNowCol=cellAbs===nowAbs;
-                    return (
-                      <td key={`${mi}-${w}`} style={{
-                        padding:0,height:26,
-                        borderBottom:"1px solid var(--border)",
-                        borderLeft:w===1?"1px solid var(--border)":"1px solid rgba(255,255,255,0.02)",
-                        background:inRange?color:isNowCol?"rgba(79,142,247,0.04)":"transparent",
-                        position:"relative",
-                      }}>
-                        {inRange&&w===entry.week_start&&(
-                          <div style={{position:"absolute",top:3,left:2,right:2,bottom:3,borderRadius:2,border:`1.5px solid ${border}`,background:color}}/>
-                        )}
-                        {isNowCol&&(
-                          <div style={{position:"absolute",top:0,bottom:0,left:"50%",width:1.5,background:"rgba(79,142,247,0.35)",transform:"translateX(-50%)"}}/>
-                        )}
-                      </td>
-                    );
-                  }))}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        <div style={{display:"flex",gap:16,flexWrap:"wrap",padding:"10px 16px",borderTop:"1px solid var(--border)"}}>
-          {[
-            {bg:"rgba(52,211,153,0.15)",border:"var(--success)",label:"Terminée"},
-            {bg:"rgba(79,142,247,0.2)", border:"var(--accent)", label:"En cours"},
-            {bg:"rgba(251,191,36,0.12)",border:"var(--warning)",label:"À venir (2 sem.)"},
-            {bg:"rgba(248,113,113,0.15)",border:"var(--danger)", label:"En retard"},
-            {bg:"rgba(96,165,250,0.06)",border:"var(--border)", label:"Planifiée"},
-          ].map(l=>(
-            <div key={l.label} style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"var(--text2)"}}>
-              <div style={{width:12,height:12,borderRadius:2,background:l.bg,border:`1.5px solid ${l.border}`}}/>
-              {l.label}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7, minmax(120px, 1fr))",borderBottom:"1px solid var(--border)",overflowX:"auto"}}>
+          {WEEKDAY_LABELS.map(day => (
+            <div key={day} style={{padding:"8px 10px",background:"var(--bg3)",fontSize:11,fontWeight:700,color:"var(--text3)",textTransform:"uppercase",textAlign:"center",borderRight:"1px solid var(--border)"}}>
+              {day}
             </div>
           ))}
         </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7, minmax(120px, 1fr))",overflowX:"auto"}}>
+          {cells.map((date, index) => {
+            const items = date ? entriesForDay(date, ticketByDept) : [];
+            const isToday = date && sameDay(date, today);
+            return (
+              <div key={index} style={{minHeight:108,padding:8,borderRight:"1px solid var(--border)",borderBottom:"1px solid var(--border)",background:isToday?"rgba(79,142,247,0.06)":"transparent"}}>
+                {date && (
+                  <>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                      <span style={{fontSize:12,fontWeight:700,color:isToday?"var(--accent)":"var(--text2)"}}>
+                        {String(date.getDate()).padStart(2, "0")}
+                      </span>
+                      {isToday && <span className="badge badge-info" style={{fontSize:9}}>Aujourd'hui</span>}
+                    </div>
+                    <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                      {items.map(item => {
+                        const info = statusInfo(item, today);
+                        return (
+                          <div key={`${item.entry.dept_name}-${item.entry.week_start}`} style={{padding:"5px 7px",borderRadius:6,background:info.bg,border:`1px solid ${info.border}`,minWidth:0}} title={`${item.entry.dept_name} · du ${String(item.range.startDay).padStart(2, "0")} au ${String(item.range.endDay).padStart(2, "0")} ${MONTH_NAMES[item.entry.month - 1]}`}>
+                            <div style={{fontSize:11,fontWeight:700,color:"var(--text2)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{item.entry.dept_name}</div>
+                            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,marginTop:3}}>
+                              <span style={{fontSize:10,color:"var(--text3)"}}>S{item.entry.week_start} à S{item.entry.week_start + item.entry.duration - 1}</span>
+                              <span className={`badge badge-${info.badge}`} style={{fontSize:9}}>{info.label}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="card" style={{marginTop:16,padding:14}}>
+        <div className="section-title" style={{marginBottom:10}}>Services du mois</div>
+        {monthPlans.length === 0 ? (
+          <div style={{fontSize:13,color:"var(--text3)"}}>Aucune maintenance préventive programmée ce mois-ci.</div>
+        ) : (
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(240px, 1fr))",gap:10}}>
+            {monthPlans.map(item => {
+              const info = statusInfo(item, today);
+              return (
+                <div key={`${item.entry.dept_name}-${item.entry.week_start}`} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:"10px 12px",border:"1px solid var(--border)",borderRadius:8,background:"var(--bg2)"}}>
+                  <div style={{minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{item.entry.dept_name}</div>
+                    <div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>Du {String(item.range.startDay).padStart(2, "0")} au {String(item.range.endDay).padStart(2, "0")} {MONTH_NAMES[month - 1]}</div>
+                  </div>
+                  <span className={`badge badge-${info.badge}`} style={{flexShrink:0}}>{info.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
 }
-
 // ── Page principale ────────────────────────────────────────────────────
 export default function Maintenances() {
   const [tab, setTab]         = useState("list");
@@ -396,7 +399,7 @@ export default function Maintenances() {
 
       {/* Onglets */}
       <div style={{display:"flex",gap:6,marginBottom:20}}>
-        {[["list","📋 Liste"],["calendar","📅 Calendrier planning"]].map(([key,label])=>(
+        {[["list","📋 Liste"],["calendar","📅 Agenda planning"]].map(([key,label])=>(
           <button key={key} onClick={()=>setTab(key)} className={`btn ${tab===key?"btn-primary":"btn-ghost"}`} style={{fontSize:13}}>
             {label}
           </button>
