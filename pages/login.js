@@ -6,8 +6,8 @@ import { api } from "../lib/api";
 export default function Login() {
   const { login } = useAuth();
   const router = useRouter();
-  const [email, setEmail] = useState("admin@local.test");
-  const [password, setPassword] = useState("admin123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -45,9 +45,6 @@ export default function Login() {
             {loading ? <span className="spinner" style={{width:16,height:16}}/> : "Se connecter"}
           </button>
         </form>
-        <p style={{marginTop:20,fontSize:11,color:"var(--text3)",textAlign:"center"}}>
-          admin@local.test / admin123 · ange@local.test / tech123
-        </p>
       </div>
     </div>
   );
