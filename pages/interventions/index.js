@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { api } from "../../lib/api";
+import { downloadExcel, printReport } from "../../lib/reportExport";
 import Layout from "../../components/Layout";
 import DataTable from "../../components/DataTable";
 import { useInterventions } from "../../hooks/useInterventions";
@@ -226,14 +227,17 @@ export default function Interventions() {
   ];
 
   const totalDuration = interventions.reduce((s, i) => s + (i.duration_min || 0), 0);
+  const reportHeaders=["Titre","Service","Site","Équipement","Technicien","Date","Durée","Statut"];
+  const reportRows=interventions.map(i=>[i.title,i.department_name||"—",i.site_name||"—",i.asset_name||"—",i.performed_by||"—",fmtDate(i.date),fmtDuration(i.duration_min),STATUS_LABELS[i.status]||i.status]);
 
   return (
-    <Layout title="Interventions" alertCount={alertCount} actions={
+  <Layout title="Interventions" alertCount={alertCount} actions={<div style={{display:"flex",gap:8}}>
+      <button className="btn btn-ghost" onClick={()=>downloadExcel("rapport-interventions",reportHeaders,reportRows)}>Exporter Excel</button>
+      <button className="btn btn-ghost" onClick={()=>printReport("Rapport des interventions",reportHeaders,reportRows,`${interventions.length} intervention(s) — filtres actifs inclus`)}>Imprimer / PDF</button>
       <button className="btn btn-primary" onClick={() => { setEditing(null); setModal(true); }}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
         Nouvelle intervention
-      </button>
-    }>
+      </button></div>}>
       {/* Stats */}
       <div className="stats-grid mb-20">
         <div className="stat-card">

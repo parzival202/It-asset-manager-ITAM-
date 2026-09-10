@@ -7,6 +7,7 @@ import { useMeta } from "../../hooks/useMeta";
 import { useAssets } from "../../hooks/useAssets";
 import { api } from "../../lib/api";
 import { PLANNING_2025, MONTH_NAMES } from "../../lib/planningData";
+import { downloadExcel, printReport } from "../../lib/reportExport";
 
 const MAINT_TYPES   = { preventive:"Préventive", corrective:"Corrective", replacement:"Remplacement", deployment:"Déploiement" };
 const STATUS_COLORS = { planned:"info", in_progress:"warning", completed:"success", cancelled:"neutral", overdue:"danger" };
@@ -347,6 +348,8 @@ export default function Maintenances() {
 
   // Compter les maintenances en cours (planifiées + générées par planning + overdue)
   const activeCount = maintenances.filter(m => ["planned","in_progress","overdue"].includes(m.status)).length;
+  const reportHeaders=["Titre","Type","Statut","Équipement","Service","Technicien","Début","Fin prévue","Coût","Pièce remplacée"];
+  const reportRows=maintenances.map(m=>[m.title,MAINT_TYPES[m.type]||m.type,STATUS_LABELS[m.status]||m.status,m.asset_name||"Service entier",m.dept_name||"—",m.tech_name||m.performed_by_name||"—",fmtDate(m.scheduled_date),fmtDate(m.end_date),m.cost||"—",m.replacement_part||"—"]);
 
   const COLUMNS = [
     {
@@ -382,12 +385,13 @@ export default function Maintenances() {
   ];
 
   return (
-    <Layout title="Maintenances" alertCount={alertCount} actions={
+    <Layout title="Maintenances" alertCount={alertCount} actions={<div style={{display:"flex",gap:8}}>
+      <button className="btn btn-ghost" onClick={()=>downloadExcel("rapport-maintenances",reportHeaders,reportRows)}>Exporter Excel</button>
+      <button className="btn btn-ghost" onClick={()=>printReport("Rapport des maintenances",reportHeaders,reportRows,`${maintenances.length} maintenance(s) — filtres actifs inclus`)}>Imprimer / PDF</button>
       <button className="btn btn-primary" onClick={()=>{setEditing(null);setModal(true);}}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
         Ajouter
-      </button>
-    }>
+      </button></div>}>
       {/* Compteur rapide */}
       {activeCount > 0 && (
         <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>

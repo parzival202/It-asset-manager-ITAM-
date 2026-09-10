@@ -6,6 +6,7 @@ import { useAssets } from "../../hooks/useAssets";
 import { useAlerts } from "../../hooks/useAlerts";
 import { useMeta } from "../../hooks/useMeta";
 import { api } from "../../lib/api";
+import { downloadExcel, printReport } from "../../lib/reportExport";
 
 const TYPE_LABELS   = { laptop:"Laptop", screen:"Ecran", uc:"UC", printer:"Imprimante", all_in_one:"All-in-one" };
 const STATUS_COLORS = { in_service:"success", maintenance:"warning", retired:"neutral", storage:"info" };
@@ -163,14 +164,17 @@ export default function Assets() {
     if (editing) await update(editing.id, form);
     else await create(form);
   }
+  const reportRows=assets.map(a=>[a.asset_tag,a.name,TYPE_LABELS[a.type]||a.type,STATUS_LABELS[a.status]||a.status,a.site_name||"—",a.department_name||"—",a.assigned_user_name||"—",a.brand||"—",a.model||"—",a.serial_number||"—"]);
+  const reportHeaders=["Tag","Équipement","Type","Statut","Site","Service","Utilisateur","Marque","Modèle","N° de série"];
 
   return (
-    <Layout title="Equipements" alertCount={alertCount} actions={
+    <Layout title="Equipements" alertCount={alertCount} actions={<div style={{display:"flex",gap:8}}>
+      <button className="btn btn-ghost" onClick={()=>downloadExcel("parc-informatique",reportHeaders,reportRows)}>Exporter Excel</button>
+      <button className="btn btn-ghost" onClick={()=>printReport("Rapport du parc informatique",reportHeaders,reportRows,`${assets.length} équipement(s) — filtres actifs inclus`)}>Imprimer / PDF</button>
       <button className="btn btn-primary" onClick={() => { setEditing(null); setModal(true); }}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
         Ajouter
-      </button>
-    }>
+      </button></div>}>
       <DataTable
         columns={COLUMNS}
         data={assets}

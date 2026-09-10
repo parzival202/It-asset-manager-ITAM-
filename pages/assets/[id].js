@@ -7,6 +7,7 @@ import { useAlerts } from "../../hooks/useAlerts";
 import { useMeta } from "../../hooks/useMeta";
 import { useState } from "react";
 import AssignmentTimeline from "../../components/AssignmentTimeline";
+import { downloadExcel, printReport } from "../../lib/reportExport";
 
 const TYPE_LABELS         = { laptop:"Laptop", screen:"Ecran", uc:"UC", printer:"Imprimante", all_in_one:"All-in-one" };
 const STATUS_COLORS       = { in_service:"success", maintenance:"warning", retired:"neutral", storage:"info" };
@@ -94,11 +95,17 @@ export default function AssetDetail(){
   const lastMaint=allMaint.find(m=>m.status==="completed"&&m.completed_at);
   const nextMaint=allMaint.filter(m=>m.status==="planned"&&m.scheduled_date).sort((a,b)=>new Date(a.scheduled_date)-new Date(b.scheduled_date))[0];
   const activeAlerts=(asset.alerts||[]).filter(a=>a.status==="active");
+  const healthHeaders=["Élément","Valeur"];
+  const healthRows=[["Tag",asset.asset_tag],["Équipement",asset.name],["Type",TYPE_LABELS[asset.type]||asset.type],["Statut",STATUS_LABELS[asset.status]||asset.status],["Marque / modèle",`${asset.brand||"—"} ${asset.model||""}`],["N° de série",asset.serial_number||"—"],["Site",asset.site_name||"—"],["Service",asset.department_name||"—"],["Utilisateur",asset.assigned_user_name||"—"],["Fin de garantie",fmtDate(asset.warranty_end_date)],["Nombre de maintenances",allMaint.length],["Alertes actives",activeAlerts.length]];
+  const maintHeaders=["Date","Titre","Type","Statut","Technicien","Pièce remplacée","Coût"];
+  const maintRows=allMaint.map(m=>[fmtDate(m.completed_at||m.scheduled_date),m.title,MAINT_TYPES[m.type]||m.type,MAINT_STATUS_LABELS[m.status]||m.status,m.tech_name||m.performed_by_name||"—",m.replacement_part||"—",m.cost||"—"]);
 
   return(
     <Layout title="Carnet de santé" alertCount={alertCount} actions={
       <div style={{display:"flex",gap:10}}>
         <button className="btn btn-ghost" onClick={()=>router.push("/assets")}>← Retour</button>
+        <button className="btn btn-ghost" onClick={()=>downloadExcel(`carnet-sante-${asset.asset_tag}`, ["Section","Date / détail","Type","Statut","Technicien","Pièce / valeur","Coût"], [...healthRows.map(x=>["Informations",x[0]+" : "+x[1],"","","","",""]),...maintRows.map(x=>["Maintenance",...x])])}>Exporter Excel</button>
+        <button className="btn btn-ghost" onClick={()=>printReport(`Carnet de santé — ${asset.name}`, ["Date","Événement","Type","Statut","Technicien","Pièce remplacée","Coût"], [...healthRows.map(x=>["—",x[0],"Information","—","—",x[1],"—"]),...maintRows], `Dossier complet : ${allMaint.length} maintenance(s), ${activeAlerts.length} alerte(s) active(s).`)}>Imprimer / PDF</button>
         <button className="btn btn-primary" onClick={()=>{setEditingMaint(null);setModal(true);}}>+ Intervention</button>
       </div>
     }>
