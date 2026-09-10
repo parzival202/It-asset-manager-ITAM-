@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { api } from "../../lib/api";
 import Layout from "../../components/Layout";
 import DataTable from "../../components/DataTable";
 import { useInterventions } from "../../hooks/useInterventions";
@@ -21,14 +22,16 @@ function n(v) { return (v === undefined || v === "") ? null : v; }
 const STATUS_LABELS = { done:"Terminée", in_progress:"En cours", planned:"Planifiée" };
 const STATUS_COLORS = { done:"success", in_progress:"warning", planned:"info" };
 
-function InterventionModal({ intervention, meta, assets, onClose, onSave }) {
+function InterventionModal({ intervention, meta, assets, consumables, onClose, onSave }) {
   const isEdit = !!intervention;
   const today  = new Date().toISOString().split("T")[0];
-  const [form, setForm] = useState(intervention || { status:"done", date: today });
+  const [form, setForm] = useState(intervention ? {...intervention, consumables: intervention.consumables_json ? JSON.parse(intervention.consumables_json) : []} : { status:"done", date: today, consumables:[] });
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
   const set = (k,v) => setForm(f => ({...f, [k]: v}));
   const depts = meta.deptsBySite(form.site_id);
+  const addConsumable=()=>set("consumables",[...(form.consumables||[]),{consumable_id:"",quantity:1}]);
+  const changeConsumable=(i,k,v)=>set("consumables",form.consumables.map((x,n)=>n===i?{...x,[k]:v}:x));
 
   async function submit(e) {
     e.preventDefault();
@@ -78,6 +81,14 @@ function InterventionModal({ intervention, meta, assets, onClose, onSave }) {
                   {depts.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
                 </select>
               </div>
+            </div>
+            <div className="form-group" style={{borderTop:"1px solid var(--border)",paddingTop:14}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><label className="form-label" style={{margin:0}}>Consommables utilisés</label><button type="button" className="btn btn-ghost btn-sm" onClick={addConsumable}>+ Ajouter</button></div>
+              <div style={{fontSize:11,color:"var(--text3)",marginBottom:8}}>Les quantités sont déduites seulement lorsque l’intervention est terminée.</div>
+              {(form.consumables||[]).map((line,i)=><div key={i} style={{display:"flex",gap:8,marginBottom:7}}>
+                <select className="form-input form-select" style={{flex:1}} value={line.consumable_id} onChange={e=>changeConsumable(i,"consumable_id",e.target.value)}><option value="">— Consommable —</option>{consumables.map(c=><option key={c.id} value={c.id}>{c.name} · stock: {c.stock_qty}</option>)}</select>
+                <input className="form-input" style={{width:72}} type="number" min="1" value={line.quantity} onChange={e=>changeConsumable(i,"quantity",e.target.value)}/><button type="button" className="btn btn-ghost btn-sm" onClick={()=>set("consumables",form.consumables.filter((_,n)=>n!==i))}>×</button>
+              </div>)}
             </div>
 
             <div className="form-group">
@@ -170,6 +181,8 @@ export default function Interventions() {
   const { alertCount } = useAlerts();
   const meta           = useMeta();
   const { assets }     = useAssets({});
+  const [consumables,setConsumables]=useState([]);
+  useEffect(()=>{api.consumables.list().then(setConsumables).catch(()=>{});},[]);
   const depts          = meta.deptsBySite(filters.site_id);
 
   async function handleSave(form) {
@@ -270,7 +283,7 @@ export default function Interventions() {
         }
       />
 
-      {modal && <InterventionModal intervention={editing} meta={meta} assets={assets} onClose={()=>{setModal(false);setEditing(null);}} onSave={handleSave}/>}
+      {modal && <InterventionModal intervention={editing} meta={meta} assets={assets} consumables={consumables} onClose={()=>{setModal(false);setEditing(null);}} onSave={handleSave}/>}
       {detail && <DetailModal item={detail} onClose={()=>setDetail(null)}/>}
     </Layout>
   );

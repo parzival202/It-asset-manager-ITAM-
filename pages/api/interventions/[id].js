@@ -1,16 +1,19 @@
 import { getDb } from "../../../lib/db";
 import { requireAuth } from "../../../lib/auth";
+import { initDb } from "../../../lib/db";
+import { syncInterventionConsumables } from "../../../lib/consumables";
 
 function n(v) { return (v === undefined || v === "" || v === null) ? null : v; }
 
 export default async function handler(req, res) {
   const user = await requireAuth(req, res);
   if (!user) return;
+  await initDb();
   const db = getDb();
   const { id } = req.query;
 
   if (req.method === "PUT") {
-    const { title, description, site_id, department_id, asset_id, performed_by, status, date, duration_min } = req.body;
+    const { title, description, site_id, department_id, asset_id, performed_by, status, date, duration_min, consumables=[] } = req.body;
     try {
       await db.execute({
         sql: `UPDATE interventions SET title=?, description=?, site_id=?, department_id=?, asset_id=?,
@@ -18,6 +21,7 @@ export default async function handler(req, res) {
         args: [n(title), n(description), n(site_id)?Number(site_id):null, n(department_id)?Number(department_id):null,
                n(asset_id)?Number(asset_id):null, n(performed_by), n(status)||"done", n(date), n(duration_min)?Number(duration_min):null, Number(id)]
       });
+      await syncInterventionConsumables(db, Number(id), status||"done", consumables);
       const updated = await db.execute({
         sql: `SELECT i.*, s.name as site_name, d.name as department_name, a.name as asset_name
               FROM interventions i
@@ -34,6 +38,8 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "DELETE") {
+    const used=await db.execute({sql:"SELECT consumable_id,quantity FROM intervention_consumables WHERE intervention_id=?",args:[Number(id)]});
+    for(const item of used.rows) await db.execute({sql:"UPDATE consumables SET stock_qty=stock_qty+?,updated_at=datetime('now') WHERE id=?",args:[Number(item.quantity),Number(item.consumable_id)]});
     await db.execute({ sql: "DELETE FROM interventions WHERE id=?", args: [Number(id)] });
     return res.json({ success: true });
   }

@@ -1,10 +1,17 @@
-import { getDb } from "../../lib/db";
+import { getDb, initDb } from "../../lib/db";
 import { requireAuth } from "../../lib/auth";
 
 export default async function handler(req, res) {
   const user = await requireAuth(req, res);
   if (!user) return;
+  await initDb();
   const db = getDb();
+
+  const [consumableByService, consumableTop, consumableLow] = await Promise.all([
+    db.execute(`SELECT COALESCE(d.name,'Non affecté') as name, SUM(ic.quantity) as quantity FROM intervention_consumables ic JOIN interventions i ON i.id=ic.intervention_id LEFT JOIN departments d ON d.id=i.department_id GROUP BY d.id ORDER BY quantity DESC LIMIT 5`),
+    db.execute(`SELECT c.name, SUM(ic.quantity) as quantity FROM intervention_consumables ic JOIN consumables c ON c.id=ic.consumable_id GROUP BY c.id ORDER BY quantity DESC LIMIT 5`),
+    db.execute(`SELECT COUNT(*) as count FROM consumables WHERE stock_qty<=minimum_qty`)
+  ]);
 
   // ── Parc : équipements par site ───────────────────────────────────
   const bysite = await db.execute(`
@@ -115,6 +122,7 @@ export default async function handler(req, res) {
     parc:        { bysite: bysite.rows, bytype: bytype.rows, bystatus: bystatus.rows },
     maintenances:{ byType: maintByType.rows, byMonth: maintByMonth.rows, pending: maintPending.rows, upcoming: maintUpcoming.rows },
     interventions:{ byDept: interventByDept.rows, byTech: interventByTech.rows, pending: interventPending.rows, byMonth: interventByMonth.rows },
+    consumables: { byService: consumableByService.rows, top: consumableTop.rows, lowStock: Number(consumableLow.rows[0].count) },
     totals:      totals.rows[0],
   });
 }

@@ -200,7 +200,7 @@ export default function DashboardStats({ title = "Dashboard" }) {
     </Layout>
   );
 
-  const { parc, maintenances, interventions, totals } = data;
+  const { parc, maintenances, interventions, consumables, totals } = data;
 
   // Prépare les mois pour les graphiques
   const last6months = Array.from({ length:6 }, (_, i) => {
@@ -307,6 +307,13 @@ export default function DashboardStats({ title = "Dashboard" }) {
             }
           </div>
         </div>
+      </div>
+
+      {/* ── Parc ─────────────────────────────────────────────── */}
+      <div style={{marginBottom:8}}><div style={{fontSize:13,fontWeight:600,color:"var(--text3)",textTransform:"uppercase",letterSpacing:".05em",marginBottom:14}}>Consommables</div></div>
+      <div className="grid2 mb-20" style={{gap:16}}>
+        <div className="card"><div className="section-title" style={{marginBottom:14}}>Services les plus consommateurs</div><HBarChart data={(consumables?.byService||[]).map(r=>({name:r.name,count:Number(r.quantity)}))} labelKey="name" valueKey="count" color="var(--warning)"/></div>
+        <div className="card"><div className="section-title" style={{marginBottom:14}}>Consommables les plus sollicités</div><HBarChart data={(consumables?.top||[]).map(r=>({name:r.name,count:Number(r.quantity)}))} labelKey="name" valueKey="count" color="var(--accent2)"/><div style={{marginTop:14,fontSize:12,color:(consumables?.lowStock||0)>0?"var(--danger)":"var(--success)"}}>{consumables?.lowStock||0} référence(s) au seuil d’alerte</div></div>
       </div>
 
       {/* ── Parc ─────────────────────────────────────────────── */}
