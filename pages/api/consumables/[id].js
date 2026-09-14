@@ -12,9 +12,18 @@ export default async function handler(req,res) {
     ]); if(!item.rows[0])return res.status(404).json({error:"Consommable introuvable"}); return res.json({...item.rows[0],movements:movements.rows,uses:uses.rows});
   }
   if(req.method==="PUT") {
-    const {reference,name,category,color,compatible_printer,minimum_qty,unit_cost,supplier,notes}=req.body;
-    try { await db.execute({sql:"UPDATE consumables SET reference=?,name=?,category=?,color=?,compatible_printer=?,minimum_qty=?,unit_cost=?,supplier=?,notes=?,updated_at=datetime('now') WHERE id=?",args:[reference,name,category||"toner",empty(color),empty(compatible_printer),Math.max(0,Number(minimum_qty)||0),empty(unit_cost) === null ? null : Number(unit_cost),empty(supplier),empty(notes),id]}); const row=await db.execute({sql:"SELECT * FROM consumables WHERE id=?",args:[id]}); return res.json(row.rows[0]); } catch(e){return res.status(400).json({error:e.message});}
+    const {reference,name,category,cartridge_type,color,color_stock,compatible_printer,minimum_qty,unit_cost,supplier,notes}=req.body;
+    try { await db.execute({sql:"UPDATE consumables SET reference=?,name=?,category=?,cartridge_type=?,color=?,color_stock=?,compatible_printer=?,minimum_qty=?,unit_cost=?,supplier=?,notes=?,updated_at=datetime('now') WHERE id=?",args:[reference,name,category||"toner",cartridge_type||"monochrome",empty(color),color_stock ? JSON.stringify(color_stock) : null,empty(compatible_printer),Math.max(0,Number(minimum_qty)||0),empty(unit_cost) === null ? null : Number(unit_cost),empty(supplier),empty(notes),id]}); const row=await db.execute({sql:"SELECT * FROM consumables WHERE id=?",args:[id]}); return res.json(row.rows[0]); } catch(e){return res.status(400).json({error:e.message});}
   }
-  if(req.method==="DELETE") { await db.execute({sql:"DELETE FROM consumables WHERE id=?",args:[id]}); return res.json({success:true}); }
+  if(req.method==="DELETE") {
+    try {
+      await db.execute("BEGIN");
+      await db.execute({sql:"DELETE FROM intervention_consumables WHERE consumable_id=?",args:[id]});
+      await db.execute({sql:"DELETE FROM consumable_movements WHERE consumable_id=?",args:[id]});
+      await db.execute({sql:"DELETE FROM consumables WHERE id=?",args:[id]});
+      await db.execute("COMMIT");
+      return res.json({success:true});
+    } catch (e) { await db.execute("ROLLBACK"); return res.status(400).json({error:e.message}); }
+  }
   res.status(405).end();
 }
