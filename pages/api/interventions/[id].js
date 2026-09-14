@@ -38,8 +38,18 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "DELETE") {
-    const used=await db.execute({sql:"SELECT consumable_id,quantity FROM intervention_consumables WHERE intervention_id=?",args:[Number(id)]});
-    for(const item of used.rows) await db.execute({sql:"UPDATE consumables SET stock_qty=stock_qty+?,updated_at=datetime('now') WHERE id=?",args:[Number(item.quantity),Number(item.consumable_id)]});
+    const used=await db.execute({sql:"SELECT ic.consumable_id,ic.quantity,ic.color_quantities,c.color_stock,c.cartridge_type FROM intervention_consumables ic JOIN consumables c ON c.id=ic.consumable_id WHERE ic.intervention_id=?",args:[Number(id)]});
+    for(const item of used.rows) {
+      if (item.cartridge_type === "color" && item.color_stock) {
+        let colors={}; try { colors=JSON.parse(item.color_stock||"{}"); } catch (_) {}
+        let usedColors={}; try { usedColors=JSON.parse(item.color_quantities||"{}"); } catch (_) {}
+        Object.entries(usedColors).forEach(([color,quantity])=>{colors[color]=Number(colors[color]||0)+Number(quantity||0);});
+        const total=Object.values(colors).reduce((sum,quantity)=>sum+Number(quantity||0),0);
+        await db.execute({sql:"UPDATE consumables SET color_stock=?,stock_qty=?,updated_at=datetime('now') WHERE id=?",args:[JSON.stringify(colors),total,Number(item.consumable_id)]});
+      } else {
+        await db.execute({sql:"UPDATE consumables SET stock_qty=stock_qty+?,updated_at=datetime('now') WHERE id=?",args:[Number(item.quantity),Number(item.consumable_id)]});
+      }
+    }
     await db.execute({ sql: "DELETE FROM interventions WHERE id=?", args: [Number(id)] });
     return res.json({ success: true });
   }

@@ -15,7 +15,7 @@ export default async function handler(req, res) {
     const { site_id, department_id, from, to } = req.query;
     let sql = `
       SELECT i.*, s.name as site_name, d.name as department_name, a.name as asset_name, a.asset_tag,
-      (SELECT json_group_array(json_object('consumable_id',ic.consumable_id,'quantity',ic.quantity,'name',c.name)) FROM intervention_consumables ic JOIN consumables c ON c.id=ic.consumable_id WHERE ic.intervention_id=i.id) as consumables_json
+      (SELECT json_group_array(json_object('consumable_id',ic.consumable_id,'quantity',ic.quantity,'color_quantities',ic.color_quantities,'name',c.name)) FROM intervention_consumables ic JOIN consumables c ON c.id=ic.consumable_id WHERE ic.intervention_id=i.id) as consumables_json
       FROM interventions i
       LEFT JOIN sites s ON i.site_id = s.id
       LEFT JOIN departments d ON i.department_id = d.id

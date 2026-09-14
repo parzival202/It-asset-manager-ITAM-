@@ -22,17 +22,25 @@ function n(v) { return (v === undefined || v === "") ? null : v; }
 
 const STATUS_LABELS = { done:"Terminée", in_progress:"En cours", planned:"Planifiée" };
 const STATUS_COLORS = { done:"success", in_progress:"warning", planned:"info" };
+const INTERVENTION_COLORS = { black:"Noir", cyan:"Cyan", magenta:"Magenta", yellow:"Jaune" };
+const COLOR_SWATCHES = { black:"#20242b", cyan:"#19b9d1", magenta:"#d946a0", yellow:"#eab308" };
+
+function parseColorQuantities(value) {
+  try { return typeof value === "string" ? JSON.parse(value || "{}") : value || {}; } catch { return {}; }
+}
 
 function InterventionModal({ intervention, meta, assets, consumables, onClose, onSave }) {
   const isEdit = !!intervention;
   const today  = new Date().toISOString().split("T")[0];
-  const [form, setForm] = useState(intervention ? {...intervention, consumables: intervention.consumables_json ? JSON.parse(intervention.consumables_json) : []} : { status:"done", date: today, consumables:[] });
+    const [form, setForm] = useState(intervention ? {...intervention, consumables: intervention.consumables_json ? JSON.parse(intervention.consumables_json).map(line => ({...line, color_quantities: parseColorQuantities(line.color_quantities)})) : []} : { status:"done", date: today, consumables:[] });
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
   const set = (k,v) => setForm(f => ({...f, [k]: v}));
   const depts = meta.deptsBySite(form.site_id);
-  const addConsumable=()=>set("consumables",[...(form.consumables||[]),{consumable_id:"",quantity:1}]);
-  const changeConsumable=(i,k,v)=>set("consumables",form.consumables.map((x,n)=>n===i?{...x,[k]:v}:x));
+  const addConsumable=()=>set("consumables",[...(form.consumables||[]),{consumable_id:"",quantity:1,color_quantities:{}}]);
+  const changeConsumable=(i,k,v)=>setForm(current=>({...current,consumables:current.consumables.map((x,n)=>n===i?{...x,[k]:v}:x)}));
+  const selectedConsumable = line => consumables.find(item => Number(item.id) === Number(line.consumable_id));
+  const setColorQuantity = (index, color, value) => set("consumables", form.consumables.map((line, lineIndex) => lineIndex === index ? {...line, color_quantities:{...(line.color_quantities || {}), [color]:value}, quantity:Object.values({...line.color_quantities, [color]:value}).reduce((total, amount) => total + (Number(amount) || 0), 0)} : line));
 
   async function submit(e) {
     e.preventDefault();
@@ -86,10 +94,7 @@ function InterventionModal({ intervention, meta, assets, consumables, onClose, o
             <div className="form-group" style={{borderTop:"1px solid var(--border)",paddingTop:14}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><label className="form-label" style={{margin:0}}>Consommables utilisés</label><button type="button" className="btn btn-ghost btn-sm" onClick={addConsumable}>+ Ajouter</button></div>
               <div style={{fontSize:11,color:"var(--text3)",marginBottom:8}}>Les quantités sont déduites seulement lorsque l’intervention est terminée.</div>
-              {(form.consumables||[]).map((line,i)=><div key={i} style={{display:"flex",gap:8,marginBottom:7}}>
-                <select className="form-input form-select" style={{flex:1}} value={line.consumable_id} onChange={e=>changeConsumable(i,"consumable_id",e.target.value)}><option value="">— Consommable —</option>{consumables.map(c=><option key={c.id} value={c.id}>{c.name} · stock: {c.stock_qty}</option>)}</select>
-                <input className="form-input" style={{width:72}} type="number" min="1" value={line.quantity} onChange={e=>changeConsumable(i,"quantity",e.target.value)}/><button type="button" className="btn btn-ghost btn-sm" onClick={()=>set("consumables",form.consumables.filter((_,n)=>n!==i))}>×</button>
-              </div>)}
+              {(form.consumables||[]).map((line,i)=>{const selected=selectedConsumable(line);const colorCartridge=selected?.category==="toner"&&selected?.cartridge_type==="color";return <div key={i} style={{marginBottom:10,padding:10,border:"1px solid var(--border)",borderRadius:4}}><div style={{display:"flex",gap:8}}><select className="form-input form-select" style={{flex:1}} value={line.consumable_id} onChange={e=>{const item=consumables.find(c=>String(c.id)===e.target.value);changeConsumable(i,"consumable_id",e.target.value);if(item?.cartridge_type!=="color")changeConsumable(i,"color_quantities",{});}}><option value="">— Consommable —</option>{consumables.map(c=><option key={c.id} value={c.id}>{c.name} · stock: {c.stock_qty}</option>)}</select>{!colorCartridge&&<input className="form-input" style={{width:72}} type="number" min="1" value={line.quantity||1} onChange={e=>changeConsumable(i,"quantity",e.target.value)}/>}<button type="button" className="btn btn-ghost btn-sm" onClick={()=>set("consumables",form.consumables.filter((_,n)=>n!==i))}>×</button></div>{colorCartridge&&<div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>{Object.entries(INTERVENTION_COLORS).map(([color,label])=><label key={color} style={{display:"flex",alignItems:"center",gap:5,fontSize:12}}><i style={{width:9,height:9,borderRadius:"50%",background:COLOR_SWATCHES[color],border:color==="yellow"?"1px solid #a16207":"none"}} />{label}<input className="form-input" style={{width:58}} type="number" min="0" value={line.color_quantities?.[color]||""} onChange={e=>setColorQuantity(i,color,e.target.value)}/></label>)}</div>}</div>})}
             </div>
 
             <div className="form-group">
