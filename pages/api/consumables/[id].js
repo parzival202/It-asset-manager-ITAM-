@@ -12,8 +12,13 @@ export default async function handler(req,res) {
     ]); if(!item.rows[0])return res.status(404).json({error:"Consommable introuvable"}); return res.json({...item.rows[0],movements:movements.rows,uses:uses.rows});
   }
   if(req.method==="PUT") {
-    const {reference,name,category,cartridge_type,color,color_stock,compatible_printer,minimum_qty,unit_cost,supplier,notes}=req.body;
-    try { await db.execute({sql:"UPDATE consumables SET reference=?,name=?,category=?,cartridge_type=?,color=?,color_stock=?,compatible_printer=?,minimum_qty=?,unit_cost=?,supplier=?,notes=?,updated_at=datetime('now') WHERE id=?",args:[reference,name,category||"toner",cartridge_type||"monochrome",empty(color),color_stock ? JSON.stringify(color_stock) : null,empty(compatible_printer),Math.max(0,Number(minimum_qty)||0),empty(unit_cost) === null ? null : Number(unit_cost),empty(supplier),empty(notes),id]}); const row=await db.execute({sql:"SELECT * FROM consumables WHERE id=?",args:[id]}); return res.json(row.rows[0]); } catch(e){return res.status(400).json({error:e.message});}
+    const {reference,name,category,cartridge_type,color,color_stock,initial_qty,compatible_printer,minimum_qty,unit_cost,supplier,notes}=req.body;
+    const stockByColor = color_stock && typeof color_stock === "object" ? color_stock : {};
+    const hasColorStock = category === "toner" && cartridge_type === "color";
+    const stockQty = hasColorStock
+      ? Object.values(stockByColor).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0)
+      : Math.max(0, Number(initial_qty) || 0);
+    try { await db.execute({sql:"UPDATE consumables SET reference=?,name=?,category=?,cartridge_type=?,color=?,color_stock=?,stock_qty=?,compatible_printer=?,minimum_qty=?,unit_cost=?,supplier=?,notes=?,updated_at=datetime('now') WHERE id=?",args:[reference,name,category||"toner",cartridge_type||"monochrome",empty(color),hasColorStock ? JSON.stringify(stockByColor) : null,stockQty,empty(compatible_printer),Math.max(0,Number(minimum_qty)||0),empty(unit_cost) === null ? null : Number(unit_cost),empty(supplier),empty(notes),id]}); const row=await db.execute({sql:"SELECT * FROM consumables WHERE id=?",args:[id]}); return res.json(row.rows[0]); } catch(e){return res.status(400).json({error:e.message});}
   }
   if(req.method==="DELETE") {
     try {
