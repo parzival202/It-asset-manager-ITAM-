@@ -52,7 +52,7 @@ export default async function handler(req, res) {
       } else {
         await db.execute({sql:"UPDATE consumables SET stock_qty=stock_qty+?,updated_at=datetime('now') WHERE id=?",args:[Number(item.quantity),Number(item.consumable_id)]});
       }
-      await db.execute({sql:"INSERT INTO consumable_movements (consumable_id,movement_type,quantity,note,asset_id,department_id,intervention_id) VALUES (?,?,?,?,?,?,?)",args:[Number(item.consumable_id),"in",Number(item.quantity),"Restitution après suppression de l’intervention",assetId,departmentId,Number(id)]});
+      await db.execute({sql:"INSERT INTO consumable_movements (consumable_id,movement_type,quantity,note,asset_id,department_id,intervention_id,color_quantities) VALUES (?,?,?,?,?,?,?,?)",args:[Number(item.consumable_id),"in",Number(item.quantity),"Restitution après suppression de l’intervention",assetId,departmentId,Number(id),item.color_quantities || null]});
     }
     await db.execute({ sql: "DELETE FROM interventions WHERE id=?", args: [Number(id)] });
     return res.json({ success: true });

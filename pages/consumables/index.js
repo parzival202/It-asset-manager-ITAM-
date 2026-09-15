@@ -15,6 +15,11 @@ function parseStock(value) {
   try { return typeof value === "string" ? JSON.parse(value || "{}") : value || {}; } catch { return {}; }
 }
 
+function formatColorQuantities(value) {
+  const quantities = parseStock(value);
+  return Object.entries(quantities).filter(([, quantity]) => Number(quantity) > 0).map(([color, quantity]) => `${COLORS[color] || color}: ${quantity}`).join(" · ");
+}
+
 function StockColors({ row }) {
   if (row.category !== "toner") return null;
   if (row.cartridge_type === "monochrome") return <span style={{ color: "var(--text2)" }}><i style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: "#20242b", marginRight: 5 }} />Noir : {row.stock_qty || 0}</span>;
@@ -32,7 +37,7 @@ function Bar({ rows }) {
 function MovementHistory({ rows }) {
   return <div className="card mb-20">
     <div className="section-title">Historique des mouvements</div>
-    {!rows.length ? <div className="empty-state"><p>Aucun mouvement enregistré</p></div> : <div style={{ overflowX: "auto" }}><table className="data-table"><thead><tr><th>Date</th><th>Type</th><th>Consommable</th><th>Quantité</th><th>Consommateur</th><th>Équipement</th><th>Service</th><th>Détail</th></tr></thead><tbody>{rows.map((row, index) => <tr key={`${row.date}-${row.reference}-${index}`}><td>{new Date(row.date).toLocaleDateString("fr-FR")}</td><td><span className={`badge ${row.movement_type === "in" ? "badge-success" : "badge-warning"}`}>{row.movement_type === "in" ? "Entrée" : "Sortie"}</span></td><td><b>{row.name}</b><div className="text-faint text-xs">{row.reference}</div></td><td>{row.movement_type === "out" ? "−" : "+"}{row.quantity}</td><td>{row.consumer_name || "—"}</td><td>{row.asset_name || "—"}</td><td>{row.department_name || "—"}</td><td>{row.note || "—"}</td></tr>)}</tbody></table></div>}
+    {!rows.length ? <div className="empty-state"><p>Aucun mouvement enregistré</p></div> : <div style={{ overflowX: "auto" }}><table className="data-table"><thead><tr><th>Date</th><th>Type</th><th>Consommable</th><th>Quantité</th><th>Détail couleurs</th><th>Consommateur</th><th>Équipement</th><th>Service</th><th>Détail</th></tr></thead><tbody>{rows.map((row, index) => <tr key={`${row.date}-${row.reference}-${index}`}><td>{new Date(row.date).toLocaleDateString("fr-FR")}</td><td><span className={`badge ${row.movement_type === "in" ? "badge-success" : "badge-warning"}`}>{row.movement_type === "in" ? "Entrée" : "Sortie"}</span></td><td><b>{row.name}</b><div className="text-faint text-xs">{row.reference}</div></td><td>{row.movement_type === "out" ? "−" : "+"}{row.quantity}</td><td>{formatColorQuantities(row.color_quantities) || "—"}</td><td>{row.consumer_name || "—"}</td><td>{row.asset_name || "—"}</td><td>{row.department_name || "—"}</td><td>{row.note || "—"}</td></tr>)}</tbody></table></div>}
   </div>;
 }
 

@@ -11,11 +11,11 @@ export default async function handler(req,res){
   db.execute({sql:`SELECT COALESCE(d.name,'Non affecté') name,SUM(ic.quantity) quantity FROM intervention_consumables ic JOIN interventions i ON i.id=ic.intervention_id JOIN consumables c ON c.id=ic.consumable_id LEFT JOIN departments d ON d.id=i.department_id ${w} GROUP BY d.id ORDER BY quantity DESC LIMIT 10`,args}),
   db.execute({sql:`SELECT c.name,c.reference,c.category,c.color,SUM(ic.quantity) quantity FROM intervention_consumables ic JOIN interventions i ON i.id=ic.intervention_id JOIN consumables c ON c.id=ic.consumable_id ${w} GROUP BY c.id ORDER BY quantity DESC LIMIT 10`,args}),
   db.execute({sql:`SELECT c.category name,SUM(ic.quantity) quantity FROM intervention_consumables ic JOIN interventions i ON i.id=ic.intervention_id JOIN consumables c ON c.id=ic.consumable_id ${w} GROUP BY c.category ORDER BY quantity DESC`,args}),
-    db.execute({sql:`SELECT m.created_at date,c.name,c.reference,m.quantity,m.movement_type,m.note,COALESCE(i.performed_by,'—') consumer_name,COALESCE(d.name,'Non affecté') department_name,a.name asset_name
+    db.execute({sql:`SELECT m.created_at date,c.name,c.reference,m.quantity,COALESCE(m.color_quantities,ic.color_quantities) color_quantities,m.movement_type,m.note,COALESCE(i.performed_by,'—') consumer_name,COALESCE(d.name,'Non affecté') department_name,a.name asset_name
         FROM consumable_movements m JOIN consumables c ON c.id=m.consumable_id
-      LEFT JOIN interventions i ON i.id=m.intervention_id LEFT JOIN departments d ON d.id=m.department_id LEFT JOIN assets a ON a.id=m.asset_id ${mw}
+      LEFT JOIN interventions i ON i.id=m.intervention_id LEFT JOIN intervention_consumables ic ON ic.intervention_id=m.intervention_id AND ic.consumable_id=m.consumable_id LEFT JOIN departments d ON d.id=m.department_id LEFT JOIN assets a ON a.id=m.asset_id ${mw}
       UNION ALL
-      SELECT i.date,c.name,c.reference,ic.quantity,'out','Utilisation historique',COALESCE(i.performed_by,'—'),COALESCE(d.name,'Non affecté'),a.name
+      SELECT i.date,c.name,c.reference,ic.quantity,ic.color_quantities,'out','Utilisation historique',COALESCE(i.performed_by,'—'),COALESCE(d.name,'Non affecté'),a.name
       FROM intervention_consumables ic JOIN interventions i ON i.id=ic.intervention_id JOIN consumables c ON c.id=ic.consumable_id
       LEFT JOIN departments d ON d.id=i.department_id LEFT JOIN assets a ON a.id=i.asset_id
       WHERE NOT EXISTS (SELECT 1 FROM consumable_movements mx WHERE mx.intervention_id=i.id)

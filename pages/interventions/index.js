@@ -29,6 +29,10 @@ function parseColorQuantities(value) {
   try { return typeof value === "string" ? JSON.parse(value || "{}") : value || {}; } catch { return {}; }
 }
 
+function formatColorQuantities(value) {
+  return Object.entries(parseColorQuantities(value)).filter(([, quantity]) => Number(quantity) > 0).map(([color, quantity]) => `${INTERVENTION_COLORS[color] || color}: ${quantity}`).join(" · ");
+}
+
 function InterventionModal({ intervention, meta, assets, consumables, onClose, onSave }) {
   const isEdit = !!intervention;
   const today  = new Date().toISOString().split("T")[0];
@@ -141,7 +145,8 @@ function InterventionModal({ intervention, meta, assets, consumables, onClose, o
   );
 }
 
-function DetailModal({ item, onClose }) {
+function DetailModal({ item, onClose, onExport }) {
+  const consumables = item.consumables_json ? JSON.parse(item.consumables_json).map(line => ({...line, color_quantities: parseColorQuantities(line.color_quantities)})) : [];
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ maxWidth:500 }}>
@@ -169,8 +174,15 @@ function DetailModal({ item, onClose }) {
               </div>
             </div>
           )}
+          {consumables.length > 0 && (
+            <div style={{marginTop:16}}>
+              <div className="section-title" style={{marginBottom:8}}>Consommables utilisés</div>
+              {consumables.map((line, index) => <div key={`${line.consumable_id}-${index}`} style={{display:"flex",justifyContent:"space-between",gap:12,padding:"9px 0",borderBottom:"1px solid var(--border)",fontSize:13}}><span>{line.name || "Consommable"}</span><span style={{color:"var(--text2)",textAlign:"right"}}>{formatColorQuantities(line.color_quantities) || `Quantité : ${line.quantity}`}</span></div>)}
+            </div>
+          )}
         </div>
         <div className="modal-footer">
+          <button className="btn btn-primary" onClick={onExport}>Exporter PDF</button>
           <button className="btn btn-ghost" onClick={onClose}>Fermer</button>
         </div>
       </div>
@@ -194,6 +206,20 @@ export default function Interventions() {
   async function handleSave(form) {
     if (editing) await update(editing.id, form);
     else await create(form);
+  }
+
+  function exportDetail(item) {
+    const consumablesUsed = item.consumables_json ? JSON.parse(item.consumables_json).map(line => ({...line, color_quantities: parseColorQuantities(line.color_quantities)})) : [];
+    const rows = [
+      ["Date", fmtDate(item.date)],
+      ["Durée", fmtDuration(item.duration_min)],
+      ["Technicien", item.performed_by || "—"],
+      ["Équipement", item.asset_name ? `${item.asset_name} (${item.asset_tag || ""})` : "—"],
+      ["Service", item.department_name || "—"],
+      ["Description", item.description || "—"],
+      ...consumablesUsed.map(line => ["Consommable", `${line.name || "Consommable"} — ${formatColorQuantities(line.color_quantities) || `Quantité : ${line.quantity}`}`]),
+    ];
+    printReport(`Rapport intervention — ${item.title}`, ["Élément", "Détail"], rows, `${STATUS_LABELS[item.status] || item.status} · ${fmtDate(item.date)}`);
   }
 
   const COLUMNS = [
@@ -293,7 +319,7 @@ export default function Interventions() {
       />
 
       {modal && <InterventionModal intervention={editing} meta={meta} assets={assets} consumables={consumables} onClose={()=>{setModal(false);setEditing(null);}} onSave={handleSave}/>}
-      {detail && <DetailModal item={detail} onClose={()=>setDetail(null)}/>}
+      {detail && <DetailModal item={detail} onClose={()=>setDetail(null)} onExport={()=>exportDetail(detail)}/>}
     </Layout>
   );
 }
