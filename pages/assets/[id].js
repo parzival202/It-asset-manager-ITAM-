@@ -91,14 +91,24 @@ export default function AssetDetail(){
 
   const warrantyDays=asset.warranty_end_date?Math.round((new Date(asset.warranty_end_date)-Date.now())/86400000):null;
   const lifeP=lifePercent(asset.purchase_date,asset.planned_end_of_life);
-  const allMaint=asset.maintenances||maintenances;
+  const maintenanceRows=asset.maintenances||maintenances;
+  const interventionRows=(asset.interventions||[]).map(intervention=>({
+    ...intervention,
+    source:"intervention",
+    type:"intervention",
+    status:intervention.status==="done"?"completed":intervention.status,
+    scheduled_date:intervention.date,
+    completed_at:intervention.status==="done"?intervention.date:null,
+    tech_name:intervention.performed_by,
+  }));
+  const allMaint=[...maintenanceRows,...interventionRows].sort((a,b)=>new Date(b.completed_at||b.scheduled_date||0)-new Date(a.completed_at||a.scheduled_date||0));
   const lastMaint=allMaint.find(m=>m.status==="completed"&&m.completed_at);
   const nextMaint=allMaint.filter(m=>m.status==="planned"&&m.scheduled_date).sort((a,b)=>new Date(a.scheduled_date)-new Date(b.scheduled_date))[0];
   const activeAlerts=(asset.alerts||[]).filter(a=>a.status==="active");
   const healthHeaders=["Élément","Valeur"];
   const healthRows=[["Tag",asset.asset_tag],["Équipement",asset.name],["Type",TYPE_LABELS[asset.type]||asset.type],["Statut",STATUS_LABELS[asset.status]||asset.status],["Marque / modèle",`${asset.brand||"—"} ${asset.model||""}`],["N° de série",asset.serial_number||"—"],["Site",asset.site_name||"—"],["Service",asset.department_name||"—"],["Utilisateur",asset.assigned_user_name||"—"],["Fin de garantie",fmtDate(asset.warranty_end_date)],["Nombre de maintenances",allMaint.length],["Alertes actives",activeAlerts.length]];
   const maintHeaders=["Date","Titre","Type","Statut","Technicien","Pièce remplacée","Coût"];
-  const maintRows=allMaint.map(m=>[fmtDate(m.completed_at||m.scheduled_date),m.title,MAINT_TYPES[m.type]||m.type,MAINT_STATUS_LABELS[m.status]||m.status,m.tech_name||m.performed_by_name||"—",m.replacement_part||"—",m.cost||"—"]);
+  const maintRows=allMaint.map(m=>[fmtDate(m.completed_at||m.scheduled_date),m.title,MAINT_TYPES[m.type]||"Intervention",MAINT_STATUS_LABELS[m.status]||m.status,m.tech_name||m.performed_by_name||"—",m.replacement_part||"—",m.cost||"—"]);
 
   return(
     <Layout title="Carnet de santé" alertCount={alertCount} actions={
@@ -209,7 +219,7 @@ export default function AssetDetail(){
                 <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
                   <span style={{fontSize:13,fontWeight:500}}>{m.title}</span>
                   <div style={{display:"flex",gap:6}}>
-                    <span className="badge badge-neutral" style={{fontSize:10}}>{MAINT_TYPES[m.type]||m.type}</span>
+                    <span className="badge badge-neutral" style={{fontSize:10}}>{MAINT_TYPES[m.type]||"Intervention"}</span>
                     <span className={`badge badge-${MAINT_STATUS_COLORS[m.status]||"neutral"}`} style={{fontSize:10}}>{MAINT_STATUS_LABELS[m.status]||m.status}</span>
                   </div>
                 </div>
@@ -220,7 +230,7 @@ export default function AssetDetail(){
                 {m.resolution_notes&&<div style={{fontSize:12,color:"var(--success)",marginTop:3}}>✓ {m.resolution_notes}</div>}
                 {m.cost&&<div style={{fontSize:12,color:"var(--text3)",marginTop:3}}>Coût : {Number(m.cost).toLocaleString("fr-FR")} FCFA</div>}
               </div>
-              <button className="btn btn-ghost btn-sm" style={{flexShrink:0}} onClick={()=>{setEditingMaint(m);setModal(true);}}>Modifier</button>
+              {m.source !== "intervention" && <button className="btn btn-ghost btn-sm" style={{flexShrink:0}} onClick={()=>{setEditingMaint(m);setModal(true);}}>Modifier</button>}
             </div>
           ))}
         </div>}

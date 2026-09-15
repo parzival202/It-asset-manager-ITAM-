@@ -31,6 +31,13 @@ export default async function handler(req, res) {
             ORDER BY m.created_at DESC`,
       args: [id]
     });
+    const interventions = await db.execute({
+      sql: `SELECT i.*
+            FROM interventions i
+            WHERE i.asset_id = ?
+            ORDER BY i.date DESC, i.created_at DESC`,
+      args: [id]
+    });
     const alerts = await db.execute({
       sql: `SELECT * FROM alerts WHERE asset_id = ? ORDER BY created_at DESC`,
       args: [id]
@@ -38,6 +45,7 @@ export default async function handler(req, res) {
     return res.json({
       ...asset.rows[0],
       maintenances: maintenances.rows,
+      interventions: interventions.rows,
       alerts: alerts.rows
     });
   }
