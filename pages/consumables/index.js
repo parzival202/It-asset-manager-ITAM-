@@ -48,6 +48,7 @@ export default function Consumables() {
   const { alertCount } = useAlerts();
   const meta = useMeta();
   const { assets } = useAssets({});
+  const [tab, setTab] = useState("stock");
   const [items, setItems] = useState([]);
   const [report, setReport] = useState({ byService: [], topItems: [], recent: [] });
   const [modal, setModal] = useState(null);
@@ -57,14 +58,21 @@ export default function Consumables() {
   const remove = async item => { if (!window.confirm(`Supprimer le consommable « ${item.name} » ?`)) return; try { await api.consumables.delete(item.id); load(); } catch (error) { window.alert(error.message); } };
   const columns = [{ label: "Référence", accessor: "reference", render: row => <span className="mono">{row.reference}</span> }, { label: "Consommable", accessor: "name", render: row => <div><b>{row.name}</b><div className="text-faint text-xs">{CATS[row.category]} {row.cartridge_type && `· ${CARTRIDGE_TYPES[row.cartridge_type] || row.cartridge_type}`}</div><div className="text-faint text-xs"><StockColors row={row} /></div></div> }, { label: "Stock", accessor: "stock_qty", render: row => <span className={`badge ${Number(row.stock_qty) <= Number(row.minimum_qty) ? "badge-danger" : "badge-success"}`}>{row.stock_qty}</span> }, { label: "Seuil", accessor: "minimum_qty" }, { label: "Compatibilité", accessor: "compatible_printer", render: row => row.compatible_printer || "—" }, { label: "", key: "actions", render: row => <div style={{ display: "flex", gap: 6 }}><button className="btn btn-ghost btn-sm" onClick={() => setEntry(row)}>Entrée</button><button className="btn btn-ghost btn-sm" onClick={() => setModal(row)}>Modifier</button><button className="btn btn-ghost btn-sm" onClick={() => remove(row)}>Supprimer</button></div> }];
   return <Layout title="Consommables" alertCount={alertCount} actions={<button className="btn btn-primary" onClick={() => setModal({})}>+ Ajouter</button>}>
-    <div className="stats-grid mb-20">
-      <div className="stat-card"><div className="stat-label">Références</div><div className="stat-value">{items.length}</div></div>
-      <div className="stat-card"><div className="stat-label">Alertes stock</div><div className="stat-value">{items.filter(item => Number(item.stock_qty) <= Number(item.minimum_qty)).length}</div></div>
-      <div className="stat-card"><div className="stat-label">Mouvements suivis</div><div className="stat-value">{report.recent.length}</div></div>
+    <div style={{display:"flex",gap:6,marginBottom:20}}>
+      {[['stock','Stock'],['history','Historique']].map(([key,label]) => <button key={key} type="button" onClick={() => setTab(key)} className={`btn ${tab===key ? "btn-primary" : "btn-ghost"}`} style={{fontSize:13}}>{label}</button>)}
     </div>
-    <div className="grid2 mb-20"><div className="card"><div className="section-title">Services les plus consommateurs</div><Bar rows={report.byService} /></div><div className="card"><div className="section-title">Consommables les plus sollicités</div><Bar rows={report.topItems} /></div></div>
-    <MovementHistory rows={report.recent} />
-    <DataTable columns={columns} data={items} searchable searchPlaceholder="Référence, nom, compatibilité..." emptyMessage="Aucun consommable enregistré" />
+    {tab === "stock" && <>
+      <div className="stats-grid mb-20">
+        <div className="stat-card"><div className="stat-label">Références</div><div className="stat-value">{items.length}</div></div>
+        <div className="stat-card"><div className="stat-label">Alertes stock</div><div className="stat-value">{items.filter(item => Number(item.stock_qty) <= Number(item.minimum_qty)).length}</div></div>
+        <div className="stat-card"><div className="stat-label">Mouvements suivis</div><div className="stat-value">{report.recent.length}</div></div>
+      </div>
+      <DataTable columns={columns} data={items} searchable searchPlaceholder="Référence, nom, compatibilité..." emptyMessage="Aucun consommable enregistré" />
+    </>}
+    {tab === "history" && <>
+      <div className="grid2 mb-20"><div className="card"><div className="section-title">Services les plus consommateurs</div><Bar rows={report.byService} /></div><div className="card"><div className="section-title">Consommables les plus sollicités</div><Bar rows={report.topItems} /></div></div>
+      <MovementHistory rows={report.recent} />
+    </>}
     {modal !== null && <Modal item={modal.id ? modal : null} onClose={() => setModal(null)} onSave={async form => { modal.id ? await api.consumables.update(modal.id, form) : await api.consumables.create(form); load(); }} />}
     {entry && <div className="modal-overlay"><div className="modal" style={{ maxWidth: 420 }}><div className="modal-header"><h3>Entrée en stock — {entry.name}</h3></div><form onSubmit={async event => { event.preventDefault(); const data = new FormData(event.currentTarget); await api.consumables.entry(entry.id, { quantity: data.get("quantity"), note: data.get("note"), asset_id: data.get("asset_id"), department_id: data.get("department_id") }); setEntry(null); load(); }}><div className="modal-body"><div className="form-group"><label className="form-label">Quantité reçue *</label><input className="form-input" required name="quantity" type="number" min="1" /></div><div className="form-group"><label className="form-label">Équipement concerné</label><select className="form-input form-select" name="asset_id"><option value="">— Aucun —</option>{assets.map(asset => <option key={asset.id} value={asset.id}>{asset.name} ({asset.asset_tag})</option>)}</select></div><div className="form-group"><label className="form-label">Service concerné</label><select className="form-input form-select" name="department_id"><option value="">— Aucun —</option>{meta.departments.map(department => <option key={department.id} value={department.id}>{department.name}</option>)}</select></div><div className="form-group"><label className="form-label">Note</label><input className="form-input" name="note" /></div></div><div className="modal-footer"><button type="button" className="btn btn-ghost" onClick={() => setEntry(null)}>Annuler</button><button className="btn btn-primary">Ajouter au stock</button></div></form></div></div>}
   </Layout>;
