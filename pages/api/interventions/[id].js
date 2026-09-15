@@ -38,6 +38,9 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "DELETE") {
+    const intervention = await db.execute({sql:"SELECT asset_id,department_id FROM interventions WHERE id=?",args:[Number(id)]});
+    const assetId = intervention.rows[0]?.asset_id || null;
+    const departmentId = intervention.rows[0]?.department_id || null;
     const used=await db.execute({sql:"SELECT ic.consumable_id,ic.quantity,ic.color_quantities,c.color_stock,c.cartridge_type FROM intervention_consumables ic JOIN consumables c ON c.id=ic.consumable_id WHERE ic.intervention_id=?",args:[Number(id)]});
     for(const item of used.rows) {
       if (item.cartridge_type === "color" && item.color_stock) {
@@ -49,6 +52,7 @@ export default async function handler(req, res) {
       } else {
         await db.execute({sql:"UPDATE consumables SET stock_qty=stock_qty+?,updated_at=datetime('now') WHERE id=?",args:[Number(item.quantity),Number(item.consumable_id)]});
       }
+      await db.execute({sql:"INSERT INTO consumable_movements (consumable_id,movement_type,quantity,note,asset_id,department_id,intervention_id) VALUES (?,?,?,?,?,?,?)",args:[Number(item.consumable_id),"in",Number(item.quantity),"Restitution après suppression de l’intervention",assetId,departmentId,Number(id)]});
     }
     await db.execute({ sql: "DELETE FROM interventions WHERE id=?", args: [Number(id)] });
     return res.json({ success: true });

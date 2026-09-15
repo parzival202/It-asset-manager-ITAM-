@@ -3,6 +3,8 @@ import Layout from "../../components/Layout";
 import DataTable from "../../components/DataTable";
 import { api } from "../../lib/api";
 import { useAlerts } from "../../hooks/useAlerts";
+import { useMeta } from "../../hooks/useMeta";
+import { useAssets } from "../../hooks/useAssets";
 
 const CATS = { toner: "Toner / cartouche", drum: "Tambour", ribbon: "Ruban", ssd: "Disque SSD", power_supply: "Boîtier d’alimentation" };
 const CARTRIDGE_TYPES = { monochrome: "Monochrome", color: "Couleur" };
@@ -27,6 +29,13 @@ function Bar({ rows }) {
   return rows.length ? rows.map((row, index) => <div key={index} style={{ display: "flex", gap: 8, alignItems: "center", margin: "9px 0" }}><span style={{ width: 125, fontSize: 12 }}>{row.name}</span><div style={{ height: 15, background: "var(--bg3)", flex: 1 }}><div style={{ height: "100%", width: `${Number(row.quantity) / max * 100}%`, background: "var(--accent)" }} /></div><b>{row.quantity}</b></div>) : <div className="text-faint">Aucune sortie enregistrée</div>;
 }
 
+function MovementHistory({ rows }) {
+  return <div className="card mb-20">
+    <div className="section-title">Historique des mouvements</div>
+    {!rows.length ? <div className="empty-state"><p>Aucun mouvement enregistré</p></div> : <div style={{ overflowX: "auto" }}><table className="data-table"><thead><tr><th>Date</th><th>Type</th><th>Consommable</th><th>Quantité</th><th>Consommateur</th><th>Équipement</th><th>Service</th><th>Détail</th></tr></thead><tbody>{rows.map((row, index) => <tr key={`${row.date}-${row.reference}-${index}`}><td>{new Date(row.date).toLocaleDateString("fr-FR")}</td><td><span className={`badge ${row.movement_type === "in" ? "badge-success" : "badge-warning"}`}>{row.movement_type === "in" ? "Entrée" : "Sortie"}</span></td><td><b>{row.name}</b><div className="text-faint text-xs">{row.reference}</div></td><td>{row.movement_type === "out" ? "−" : "+"}{row.quantity}</td><td>{row.consumer_name || "—"}</td><td>{row.asset_name || "—"}</td><td>{row.department_name || "—"}</td><td>{row.note || "—"}</td></tr>)}</tbody></table></div>}
+  </div>;
+}
+
 function Modal({ item, onClose, onSave }) {
   const [form, setForm] = useState({ ...item, category: item?.category || "toner", cartridge_type: item?.cartridge_type || "monochrome", minimum_qty: item?.minimum_qty || 0, initial_qty: item?.initial_qty ?? item?.stock_qty ?? 0, color_stock: parseStock(item?.color_stock) });
   const set = (key, value) => setForm(current => ({ ...current, [key]: value }));
@@ -37,13 +46,26 @@ function Modal({ item, onClose, onSave }) {
 
 export default function Consumables() {
   const { alertCount } = useAlerts();
+  const meta = useMeta();
+  const { assets } = useAssets({});
   const [items, setItems] = useState([]);
-  const [report, setReport] = useState({ byService: [], topItems: [] });
+  const [report, setReport] = useState({ byService: [], topItems: [], recent: [] });
   const [modal, setModal] = useState(null);
   const [entry, setEntry] = useState(null);
   const load = () => { api.consumables.list().then(setItems); api.consumables.report().then(setReport); };
   useEffect(load, []);
   const remove = async item => { if (!window.confirm(`Supprimer le consommable « ${item.name} » ?`)) return; try { await api.consumables.delete(item.id); load(); } catch (error) { window.alert(error.message); } };
   const columns = [{ label: "Référence", accessor: "reference", render: row => <span className="mono">{row.reference}</span> }, { label: "Consommable", accessor: "name", render: row => <div><b>{row.name}</b><div className="text-faint text-xs">{CATS[row.category]} {row.cartridge_type && `· ${CARTRIDGE_TYPES[row.cartridge_type] || row.cartridge_type}`}</div><div className="text-faint text-xs"><StockColors row={row} /></div></div> }, { label: "Stock", accessor: "stock_qty", render: row => <span className={`badge ${Number(row.stock_qty) <= Number(row.minimum_qty) ? "badge-danger" : "badge-success"}`}>{row.stock_qty}</span> }, { label: "Seuil", accessor: "minimum_qty" }, { label: "Compatibilité", accessor: "compatible_printer", render: row => row.compatible_printer || "—" }, { label: "", key: "actions", render: row => <div style={{ display: "flex", gap: 6 }}><button className="btn btn-ghost btn-sm" onClick={() => setEntry(row)}>Entrée</button><button className="btn btn-ghost btn-sm" onClick={() => setModal(row)}>Modifier</button><button className="btn btn-ghost btn-sm" onClick={() => remove(row)}>Supprimer</button></div> }];
-  return <Layout title="Consommables" alertCount={alertCount} actions={<button className="btn btn-primary" onClick={() => setModal({})}>+ Ajouter</button>}><div className="stats-grid mb-20"><div className="stat-card"><div className="stat-label">Références</div><div className="stat-value">{items.length}</div></div><div className="stat-card"><div className="stat-label">Alertes stock</div><div className="stat-value">{items.filter(item => Number(item.stock_qty) <= Number(item.minimum_qty)).length}</div></div></div><div className="grid2 mb-20"><div className="card"><div className="section-title">Services les plus consommateurs</div><Bar rows={report.byService} /></div><div className="card"><div className="section-title">Consommables les plus sollicités</div><Bar rows={report.topItems} /></div></div><DataTable columns={columns} data={items} searchable searchPlaceholder="Référence, nom, compatibilité..." emptyMessage="Aucun consommable enregistré" />{modal !== null && <Modal item={modal.id ? modal : null} onClose={() => setModal(null)} onSave={async form => { modal.id ? await api.consumables.update(modal.id, form) : await api.consumables.create(form); load(); }} />}{entry && <div className="modal-overlay"><div className="modal" style={{ maxWidth: 420 }}><div className="modal-header"><h3>Entrée en stock — {entry.name}</h3></div><form onSubmit={async event => { event.preventDefault(); const data = new FormData(event.currentTarget); await api.consumables.entry(entry.id, { quantity: data.get("quantity"), note: data.get("note") }); setEntry(null); load(); }}><div className="modal-body"><div className="form-group"><label className="form-label">Quantité reçue *</label><input className="form-input" required name="quantity" type="number" min="1" /></div><div className="form-group"><label className="form-label">Note</label><input className="form-input" name="note" /></div></div><div className="modal-footer"><button type="button" className="btn btn-ghost" onClick={() => setEntry(null)}>Annuler</button><button className="btn btn-primary">Ajouter au stock</button></div></form></div></div>}</Layout>;
+  return <Layout title="Consommables" alertCount={alertCount} actions={<button className="btn btn-primary" onClick={() => setModal({})}>+ Ajouter</button>}>
+    <div className="stats-grid mb-20">
+      <div className="stat-card"><div className="stat-label">Références</div><div className="stat-value">{items.length}</div></div>
+      <div className="stat-card"><div className="stat-label">Alertes stock</div><div className="stat-value">{items.filter(item => Number(item.stock_qty) <= Number(item.minimum_qty)).length}</div></div>
+      <div className="stat-card"><div className="stat-label">Mouvements suivis</div><div className="stat-value">{report.recent.length}</div></div>
+    </div>
+    <div className="grid2 mb-20"><div className="card"><div className="section-title">Services les plus consommateurs</div><Bar rows={report.byService} /></div><div className="card"><div className="section-title">Consommables les plus sollicités</div><Bar rows={report.topItems} /></div></div>
+    <MovementHistory rows={report.recent} />
+    <DataTable columns={columns} data={items} searchable searchPlaceholder="Référence, nom, compatibilité..." emptyMessage="Aucun consommable enregistré" />
+    {modal !== null && <Modal item={modal.id ? modal : null} onClose={() => setModal(null)} onSave={async form => { modal.id ? await api.consumables.update(modal.id, form) : await api.consumables.create(form); load(); }} />}
+    {entry && <div className="modal-overlay"><div className="modal" style={{ maxWidth: 420 }}><div className="modal-header"><h3>Entrée en stock — {entry.name}</h3></div><form onSubmit={async event => { event.preventDefault(); const data = new FormData(event.currentTarget); await api.consumables.entry(entry.id, { quantity: data.get("quantity"), note: data.get("note"), asset_id: data.get("asset_id"), department_id: data.get("department_id") }); setEntry(null); load(); }}><div className="modal-body"><div className="form-group"><label className="form-label">Quantité reçue *</label><input className="form-input" required name="quantity" type="number" min="1" /></div><div className="form-group"><label className="form-label">Équipement concerné</label><select className="form-input form-select" name="asset_id"><option value="">— Aucun —</option>{assets.map(asset => <option key={asset.id} value={asset.id}>{asset.name} ({asset.asset_tag})</option>)}</select></div><div className="form-group"><label className="form-label">Service concerné</label><select className="form-input form-select" name="department_id"><option value="">— Aucun —</option>{meta.departments.map(department => <option key={department.id} value={department.id}>{department.name}</option>)}</select></div><div className="form-group"><label className="form-label">Note</label><input className="form-input" name="note" /></div></div><div className="modal-footer"><button type="button" className="btn btn-ghost" onClick={() => setEntry(null)}>Annuler</button><button className="btn btn-primary">Ajouter au stock</button></div></form></div></div>}
+  </Layout>;
 }
