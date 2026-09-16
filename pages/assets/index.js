@@ -122,7 +122,7 @@ export default function Assets() {
   const [filters, setFilters] = useState({ search:"", type:"", status:"" });
   const [modal, setModal]     = useState(false);
   const [editing, setEditing] = useState(null);
-  const { assets, loading, create, update } = useAssets(filters);
+  const { assets, loading, create, update, remove } = useAssets(filters);
   const { alertCount }  = useAlerts();
   const meta = useMeta();
 
@@ -156,7 +156,15 @@ export default function Assets() {
     : <span className="text-faint text-xs">—</span>
 )},
     { label:"", key:"actions", render: r => (
-      <button className="btn btn-ghost btn-sm" onClick={e => { e.stopPropagation(); setEditing(r); setModal(true); }}>Modifier</button>
+      <div style={{display:"flex",gap:6}}>
+        <button className="btn btn-ghost btn-sm" onClick={e => { e.stopPropagation(); setEditing(r); setModal(true); }}>Modifier</button>
+        <button className="btn btn-ghost btn-sm" onClick={async e => {
+          e.stopPropagation();
+          if (!window.confirm(`Supprimer l’équipement « ${r.name} » ? Cette action est irréversible.`)) return;
+          try { await remove(r.id); }
+          catch (err) { window.alert(err.message); }
+        }}>Supprimer</button>
+      </div>
     )},
   ];
 
