@@ -36,7 +36,7 @@ function formatColorQuantities(value) {
 function InterventionModal({ intervention, meta, assets, consumables, onClose, onSave }) {
   const isEdit = !!intervention;
   const today  = new Date().toISOString().split("T")[0];
-    const [form, setForm] = useState(intervention ? {...intervention, consumables: intervention.consumables_json ? JSON.parse(intervention.consumables_json).map(line => ({...line, color_quantities: parseColorQuantities(line.color_quantities)})) : []} : { status:"done", date: today, consumables:[] });
+    const [form, setForm] = useState(intervention ? {...intervention, intervention_type: intervention.intervention_type || "dépannage", asset_status: intervention.asset_status || "in_service", consumables: intervention.consumables_json ? JSON.parse(intervention.consumables_json).map(line => ({...line, color_quantities: parseColorQuantities(line.color_quantities)})) : []} : { status:"done", intervention_type:"dépannage", asset_status:"in_service", date: today, consumables:[] });
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
   const set = (k,v) => setForm(f => ({...f, [k]: v}));
@@ -107,6 +107,26 @@ function InterventionModal({ intervention, meta, assets, consumables, onClose, o
                 <option value="">— Aucun / Non identifié —</option>
                 {assets.map(a=><option key={a.id} value={a.id}>{a.name} ({a.asset_tag})</option>)}
               </select>
+            </div>
+
+            <div className="form-grid">
+              <div className="form-group">
+                <label className="form-label">Type d'intervention</label>
+                <select className="form-input form-select" value={form.intervention_type || "dépannage"} onChange={e=>set("intervention_type", e.target.value)}>
+                  <option value="dépannage">Dépannage</option>
+                  <option value="cartouche">Cartouche / consommable</option>
+                  <option value="maintenance">Maintenance</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Statut de l'équipement</label>
+                <select className="form-input form-select" value={form.asset_status || "in_service"} onChange={e=>set("asset_status", e.target.value)}>
+                  <option value="in_service">En service</option>
+                  <option value="maintenance">En panne / en maintenance</option>
+                  <option value="retired">Retiré</option>
+                  <option value="storage">En stock</option>
+                </select>
+              </div>
             </div>
 
             <div className="form-grid">

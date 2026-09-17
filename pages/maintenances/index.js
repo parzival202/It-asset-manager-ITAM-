@@ -318,7 +318,7 @@ export default function Maintenances() {
   const [generating, setGen]  = useState(false);
   const [scheduleTickets, setScheduleTickets] = useState([]);
   const [mounted, setMounted] = useState(false);
-  const { maintenances, loading, create, update, markDone } = useMaintenances(filters);
+  const { maintenances, loading, create, update, markDone, remove } = useMaintenances(filters);
   const { alertCount }        = useAlerts();
   const meta                  = useMeta();
   const { assets }            = useAssets({});
@@ -374,11 +374,17 @@ export default function Maintenances() {
     {
       label:"", key:"actions",
       render: r => (
-        <div style={{display:"flex",gap:6}}>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
           <button className="btn btn-ghost btn-sm" onClick={e=>{e.stopPropagation();setEditing(r);setModal(true);}}>Modifier</button>
-          {["planned","in_progress","overdue"].includes(r.status) && (
+          {['planned','in_progress','overdue'].includes(r.status) && (
             <button className="btn btn-ghost btn-sm" onClick={e=>{e.stopPropagation();markDone(r.id);}}>✓ Terminer</button>
           )}
+          <button className="btn btn-ghost btn-sm" onClick={async e => {
+            e.stopPropagation();
+            if (!window.confirm(`Supprimer la maintenance « ${r.title} » ?`)) return;
+            try { await remove(r.id); }
+            catch (err) { window.alert(err.message); }
+          }}>Supprimer</button>
         </div>
       )
     },
