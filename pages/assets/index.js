@@ -117,12 +117,117 @@ function AssetModal({ asset, meta, onClose, onSave }) {
   );
 }
 
+function ReportModal({ assets, meta, onClose }) {
+  const [form, setForm] = useState({ type:"", site_id:"", department_id:"", status:"", format:"excel" });
+  const set = (key, value) => setForm(current => ({ ...current, [key]: value, ...(key === "site_id" ? { department_id:"" } : {}) }));
+  const departments = meta.deptsBySite(form.site_id);
+  const filteredAssets = assets.filter(asset =>
+    (!form.type || asset.type === form.type) &&
+    (!form.site_id || String(asset.site_id) === String(form.site_id)) &&
+    (!form.department_id || String(asset.department_id) === String(form.department_id)) &&
+    (!form.status || asset.status === form.status)
+  );
+
+  function submit(event) {
+    event.preventDefault();
+    if (!filteredAssets.length) {
+      window.alert("Aucun équipement ne correspond aux critères sélectionnés.");
+      return;
+    }
+    const rows = filteredAssets.map(asset => [
+      asset.asset_tag,
+      asset.name,
+      TYPE_LABELS[asset.type] || asset.type,
+      STATUS_LABELS[asset.status] || asset.status,
+      asset.site_name || "—",
+      asset.department_name || "—",
+      asset.assigned_user_name || "—",
+      asset.brand || "—",
+      asset.model || "—",
+      asset.serial_number || "—",
+    ]);
+    const headers = ["Tag", "Équipement", "Type", "Statut", "Site", "Service", "Utilisateur", "Marque", "Modèle", "N° de série"];
+    const criteria = [
+      form.type ? `Type : ${TYPE_LABELS[form.type]}` : null,
+      form.site_id ? `Site : ${meta.sites.find(site => String(site.id) === String(form.site_id))?.name}` : null,
+      form.department_id ? `Service : ${departments.find(department => String(department.id) === String(form.department_id))?.name}` : null,
+      form.status ? `Statut : ${STATUS_LABELS[form.status]}` : null,
+    ].filter(Boolean);
+    const subtitle = `${filteredAssets.length} équipement(s) · ${criteria.length ? criteria.join(" · ") : "Tous les équipements"}`;
+    if (form.format === "excel") downloadExcel("rapport-equipements", headers, rows);
+    else printReport("Rapport des équipements", headers, rows, subtitle);
+    onClose();
+  }
+
+  return (
+    <div className="modal-overlay" onClick={event => event.target === event.currentTarget && onClose()}>
+      <div className="modal" style={{ maxWidth: 560 }}>
+        <div className="modal-header">
+          <h3>Générer un rapport</h3>
+          <button onClick={onClose} style={{background:"none",border:"none",color:"var(--text2)",cursor:"pointer",fontSize:20}}>×</button>
+        </div>
+        <form onSubmit={submit}>
+          <div className="modal-body">
+            <p style={{ marginTop:0, color:"var(--text2)", fontSize:13 }}>Sélectionnez les équipements à extraire.</p>
+            <div className="form-grid">
+              <div className="form-group">
+                <label className="form-label">Type d'équipement</label>
+                <select className="form-input form-select" value={form.type} onChange={event => set("type", event.target.value)}>
+                  <option value="">Tous les types</option>
+                  {Object.entries(TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Statut</label>
+                <select className="form-input form-select" value={form.status} onChange={event => set("status", event.target.value)}>
+                  <option value="">Tous les statuts</option>
+                  {Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}{value === "maintenance" ? " / panne" : ""}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="form-grid">
+              <div className="form-group">
+                <label className="form-label">Site</label>
+                <select className="form-input form-select" value={form.site_id} onChange={event => set("site_id", event.target.value)}>
+                  <option value="">Tous les sites</option>
+                  {meta.sites.map(site => <option key={site.id} value={site.id}>{site.name}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Service</label>
+                <select className="form-input form-select" value={form.department_id} onChange={event => set("department_id", event.target.value)}>
+                  <option value="">Tous les services</option>
+                  {departments.map(department => <option key={department.id} value={department.id}>{department.name}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Format d'extraction</label>
+              <select className="form-input form-select" value={form.format} onChange={event => set("format", event.target.value)}>
+                <option value="excel">Excel (CSV)</option>
+                <option value="pdf">PDF (impression)</option>
+              </select>
+            </div>
+            <div style={{ fontSize:12, color:"var(--text3)" }}>{filteredAssets.length} équipement(s) correspondent aux critères.</div>
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn btn-ghost" onClick={onClose}>Annuler</button>
+            <button type="submit" className="btn btn-primary">Générer le rapport</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function Assets() {
   const router = useRouter();
   const [filters, setFilters] = useState({ search:"", type:"", status:"" });
   const [modal, setModal]     = useState(false);
+  const [reportModal, setReportModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const { assets, loading, create, update, remove } = useAssets(filters);
+  const { assets: reportAssets, reload: reportReload } = useAssets({});
   const { alertCount }  = useAlerts();
   const meta = useMeta();
 
@@ -161,7 +266,7 @@ export default function Assets() {
         <button className="btn btn-ghost btn-sm" onClick={async e => {
           e.stopPropagation();
           if (!window.confirm(`Supprimer l’équipement « ${r.name} » ? Cette action est irréversible.`)) return;
-          try { await remove(r.id); }
+          try { await remove(r.id); await reportReload(); }
           catch (err) { window.alert(err.message); }
         }}>Supprimer</button>
       </div>
@@ -171,14 +276,11 @@ export default function Assets() {
   async function handleSave(form) {
     if (editing) await update(editing.id, form);
     else await create(form);
+    await reportReload();
   }
-  const reportRows=assets.map(a=>[a.asset_tag,a.name,TYPE_LABELS[a.type]||a.type,STATUS_LABELS[a.status]||a.status,a.site_name||"—",a.department_name||"—",a.assigned_user_name||"—",a.brand||"—",a.model||"—",a.serial_number||"—"]);
-  const reportHeaders=["Tag","Équipement","Type","Statut","Site","Service","Utilisateur","Marque","Modèle","N° de série"];
-
   return (
     <Layout title="Equipements" alertCount={alertCount} actions={<div style={{display:"flex",gap:8}}>
-      <button className="btn btn-ghost" onClick={()=>downloadExcel("parc-informatique",reportHeaders,reportRows)}>Exporter Excel</button>
-      <button className="btn btn-ghost" onClick={()=>printReport("Rapport du parc informatique",reportHeaders,reportRows,`${assets.length} équipement(s) — filtres actifs inclus`)}>Imprimer / PDF</button>
+      <button className="btn btn-ghost" onClick={()=>setReportModal(true)}>Rapport</button>
       <button className="btn btn-primary" onClick={() => { setEditing(null); setModal(true); }}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
         Ajouter
@@ -215,6 +317,7 @@ export default function Assets() {
           onSave={handleSave}
         />
       )}
+      {reportModal && <ReportModal assets={reportAssets} meta={meta} onClose={() => setReportModal(false)} />}
     </Layout>
   );
 }
