@@ -9,6 +9,7 @@ export default function DataTable({
   pageSize = 20,
   searchable = false,
   searchPlaceholder = "Rechercher...",
+  searchAccessors = [],
   actions,
   filters,
 }) {
@@ -24,8 +25,8 @@ export default function DataTable({
     if (search) {
       const q = search.toLowerCase();
       rows = rows.filter(row =>
-        columns.some(col => {
-          const v = col.accessor ? row[col.accessor] : null;
+        [...columns.map(col => col.accessor), ...searchAccessors].some(accessor => {
+          const v = accessor ? row[accessor] : null;
           return v && String(v).toLowerCase().includes(q);
         })
       );
@@ -39,7 +40,7 @@ export default function DataTable({
       });
     }
     return rows;
-  }, [data, sortKey, sortDir, search, columns]);
+  }, [data, sortKey, sortDir, search, columns, searchAccessors]);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
   const pageData   = sorted.slice((page - 1) * pageSize, page * pageSize);
@@ -85,6 +86,17 @@ export default function DataTable({
                 onChange={e => { setSearch(e.target.value); setPage(1); }}
                 style={{ paddingLeft: 34, width: 240 }}
               />
+              {internalSearch && (
+                <button
+                  type="button"
+                  className="search-clear"
+                  aria-label="Effacer la recherche"
+                  title="Effacer la recherche"
+                  onClick={() => { setSearch(""); setPage(1); }}
+                >
+                  ×
+                </button>
+              )}
             </div>
           )}
           {filters}

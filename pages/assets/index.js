@@ -191,6 +191,7 @@ export default function Assets() {
         onRowClick={row => router.push(`/assets/${row.id}`)}
         searchable
         searchPlaceholder="Nom, tag, série, utilisateur..."
+        searchAccessors={["serial_number"]}
         pageSize={25}
         filters={
           <>
