@@ -23,7 +23,7 @@ function daysFrom(d) {
   return `dans ${n} jours`;
 }
 
-const TYPE_LABELS   = { laptop:"Laptop", screen:"Ecran", uc:"UC", printer:"Imprimante", all_in_one:"All-in-one" };
+const TYPE_LABELS   = { laptop:"Laptop", screen:"Ecran", uc:"UC", printer:"Imprimante", all_in_one:"All-in-one", scanner:"Scanner" };
 const STATUS_LABELS = { in_service:"En service", maintenance:"En maintenance", retired:"Retiré", storage:"En stock" };
 const STATUS_COLORS = { in_service:"var(--success)", maintenance:"var(--warning)", retired:"var(--text3)", storage:"var(--info)" };
 const MAINT_STATUS_COLORS = { planned:"var(--info)", in_progress:"var(--warning)", overdue:"var(--danger)", completed:"var(--success)" };
