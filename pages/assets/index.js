@@ -11,6 +11,29 @@ import { downloadExcel, printReport } from "../../lib/reportExport";
 const TYPE_LABELS   = { laptop:"Laptop", screen:"Ecran", uc:"UC", printer:"Imprimante", all_in_one:"All-in-one", scanner:"Scanner" };
 const STATUS_COLORS = { in_service:"success", maintenance:"warning", retired:"neutral", storage:"info" };
 const STATUS_LABELS = { in_service:"En service", maintenance:"En maintenance", retired:"Retiré", storage:"En stock" };
+const REPORT_FIELDS = [
+  { key:"asset_tag", label:"Tag" },
+  { key:"name", label:"Équipement" },
+  { key:"type", label:"Type", format: value => TYPE_LABELS[value] || value },
+  { key:"status", label:"Statut", format: value => STATUS_LABELS[value] || value },
+  { key:"site_name", label:"Site" },
+  { key:"department_name", label:"Service" },
+  { key:"assigned_user_name", label:"Utilisateur" },
+  { key:"assigned_user_title", label:"Poste utilisateur" },
+  { key:"brand", label:"Marque" },
+  { key:"model", label:"Modèle" },
+  { key:"serial_number", label:"N° de série" },
+  { key:"operating_system", label:"Système d'exploitation" },
+  { key:"ram", label:"RAM" },
+  { key:"storage", label:"Stockage" },
+  { key:"deployment_date", label:"Mise en service", format: value => value ? fmtDate(value) : "—" },
+  { key:"purchase_date", label:"Date d'achat", format: value => value ? fmtDate(value) : "—" },
+  { key:"purchase_price", label:"Prix d'achat", format: value => value ?? "—" },
+  { key:"supplier", label:"Fournisseur" },
+  { key:"warranty_end_date", label:"Fin de garantie", format: value => value ? fmtDate(value) : "—" },
+  { key:"planned_end_of_life", label:"Fin de vie prévue", format: value => value ? fmtDate(value) : "—" },
+  { key:"notes", label:"Notes" },
+];
 
 function fmtDate(d) {
   if (!d) return "—";
@@ -118,7 +141,10 @@ function AssetModal({ asset, meta, onClose, onSave }) {
 }
 
 function ReportModal({ assets, meta, onClose }) {
-  const [form, setForm] = useState({ type:"", site_id:"", department_id:"", status:"", format:"excel" });
+  const [form, setForm] = useState({
+    type:"", site_id:"", department_id:"", status:"", format:"excel",
+    fields: Object.fromEntries(REPORT_FIELDS.map(field => [field.key, true])),
+  });
   const set = (key, value) => setForm(current => ({ ...current, [key]: value, ...(key === "site_id" ? { department_id:"" } : {}) }));
   const departments = meta.deptsBySite(form.site_id);
   const filteredAssets = assets.filter(asset =>
@@ -134,19 +160,16 @@ function ReportModal({ assets, meta, onClose }) {
       window.alert("Aucun équipement ne correspond aux critères sélectionnés.");
       return;
     }
-    const rows = filteredAssets.map(asset => [
-      asset.asset_tag,
-      asset.name,
-      TYPE_LABELS[asset.type] || asset.type,
-      STATUS_LABELS[asset.status] || asset.status,
-      asset.site_name || "—",
-      asset.department_name || "—",
-      asset.assigned_user_name || "—",
-      asset.brand || "—",
-      asset.model || "—",
-      asset.serial_number || "—",
-    ]);
-    const headers = ["Tag", "Équipement", "Type", "Statut", "Site", "Service", "Utilisateur", "Marque", "Modèle", "N° de série"];
+    const selectedFields = REPORT_FIELDS.filter(field => form.fields[field.key]);
+    if (!selectedFields.length) {
+      window.alert("Sélectionnez au moins une information à afficher dans le rapport.");
+      return;
+    }
+    const rows = filteredAssets.map(asset => selectedFields.map(field => {
+      const value = asset[field.key];
+      return field.format ? field.format(value) : (value ?? "—");
+    }));
+    const headers = selectedFields.map(field => field.label);
     const criteria = [
       form.type ? `Type : ${TYPE_LABELS[form.type]}` : null,
       form.site_id ? `Site : ${meta.sites.find(site => String(site.id) === String(form.site_id))?.name}` : null,
@@ -207,6 +230,27 @@ function ReportModal({ assets, meta, onClose }) {
                 <option value="excel">Excel (CSV)</option>
                 <option value="pdf">PDF (impression)</option>
               </select>
+            </div>
+            <div className="form-group">
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+                <label className="form-label" style={{ marginBottom:0 }}>Informations à afficher</label>
+                <div style={{ display:"flex", gap:8 }}>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => setForm(current => ({ ...current, fields:Object.fromEntries(REPORT_FIELDS.map(field => [field.key, true])) }))}>Tout sélectionner</button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => setForm(current => ({ ...current, fields:Object.fromEntries(REPORT_FIELDS.map(field => [field.key, false])) }))}>Tout masquer</button>
+                </div>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(2, minmax(0, 1fr))", gap:"8px 16px", padding:"10px 12px", border:"1px solid var(--border)", borderRadius:"var(--radius-sm)", background:"var(--bg3)" }}>
+                {REPORT_FIELDS.map(field => (
+                  <label key={field.key} style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, color:"var(--text2)", cursor:"pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={!!form.fields[field.key]}
+                      onChange={event => setForm(current => ({ ...current, fields:{ ...current.fields, [field.key]:event.target.checked } }))}
+                    />
+                    {field.label}
+                  </label>
+                ))}
+              </div>
             </div>
             <div style={{ fontSize:12, color:"var(--text3)" }}>{filteredAssets.length} équipement(s) correspondent aux critères.</div>
           </div>
