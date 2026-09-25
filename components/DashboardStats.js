@@ -24,6 +24,7 @@ function daysFrom(d) {
 }
 
 const TYPE_LABELS   = { laptop:"Laptop", screen:"Ecran", uc:"UC", printer:"Imprimante", all_in_one:"All-in-one", scanner:"Scanner" };
+const TYPE_COLORS   = { laptop:"#4f8ef7", screen:"#a78bfa", uc:"#34d399", printer:"#fbbf24", all_in_one:"#f87171", scanner:"#22d3ee" };
 const STATUS_LABELS = { in_service:"En service", maintenance:"En maintenance", retired:"Retiré", storage:"En stock" };
 const STATUS_COLORS = { in_service:"var(--success)", maintenance:"var(--warning)", retired:"var(--text3)", storage:"var(--info)" };
 const MAINT_STATUS_COLORS = { planned:"var(--info)", in_progress:"var(--warning)", overdue:"var(--danger)", completed:"var(--success)" };
@@ -237,6 +238,44 @@ export default function DashboardStats({ title = "Dashboard" }) {
         <StatCard label="Ratio préventif"       value={ratio !== null ? `${ratio}%` : "—"} sub={ratio !== null ? `${prevTotal} prév. / ${corrTotal} corr.` : "Pas encore de données"} color={ratio >= 60 ? "var(--success)" : ratio !== null ? "var(--warning)" : undefined} />
       </div>
 
+      {/* ── Parc informatique ────────────────────────────────── */}
+      <div style={{marginBottom:8}}>
+        <div style={{fontSize:13,fontWeight:600,color:"var(--text3)",textTransform:"uppercase",letterSpacing:".05em",marginBottom:14}}>Parc informatique</div>
+      </div>
+      <div className="grid2 mb-20" style={{gap:16}}>
+        <div className="card">
+          <div className="section-title" style={{marginBottom:14}}>Equipements par département</div>
+          <HBarChart
+            data={parc.bysite.map(r=>({name:r.site_name||"Non assigné",count:Number(r.count)}))}
+            labelKey="name" valueKey="count"
+            color="var(--accent)"
+          />
+        </div>
+        <div className="card">
+          <div className="section-title" style={{marginBottom:14}}>Répartition par type et statut</div>
+          <div style={{marginBottom:20}}>
+            <div style={{fontSize:11,color:"var(--text3)",marginBottom:10}}>Par type</div>
+            <DonutChart segments={
+              parc.bytype.map(r => ({
+                label: TYPE_LABELS[r.type] || r.type,
+                value: Number(r.count),
+                color: TYPE_COLORS[r.type] || "#94a3b8",
+              }))
+            }/>
+          </div>
+          <div style={{marginTop:16}}>
+            <div style={{fontSize:11,color:"var(--text3)",marginBottom:10}}>Par statut</div>
+            <DonutChart segments={
+              parc.bystatus.map(r => ({
+                label: STATUS_LABELS[r.status] || r.status,
+                value: Number(r.count),
+                color: STATUS_COLORS[r.status] || "var(--text3)",
+              }))
+            }/>
+          </div>
+        </div>
+      </div>
+
       {/* ── Alertes & En cours ───────────────────────────────── */}
       <div className="grid2 mb-20" style={{gap:16}}>
 
@@ -314,44 +353,6 @@ export default function DashboardStats({ title = "Dashboard" }) {
       <div className="grid2 mb-20" style={{gap:16}}>
         <div className="card"><div className="section-title" style={{marginBottom:14}}>Services les plus consommateurs</div><HBarChart data={(consumables?.byService||[]).map(r=>({name:r.name,count:Number(r.quantity)}))} labelKey="name" valueKey="count" color="var(--warning)"/></div>
         <div className="card"><div className="section-title" style={{marginBottom:14}}>Consommables les plus sollicités</div><HBarChart data={(consumables?.top||[]).map(r=>({name:r.name,count:Number(r.quantity)}))} labelKey="name" valueKey="count" color="var(--accent2)"/><div style={{marginTop:14,fontSize:12,color:(consumables?.lowStock||0)>0?"var(--danger)":"var(--success)"}}>{consumables?.lowStock||0} référence(s) au seuil d’alerte</div></div>
-      </div>
-
-      {/* ── Parc ─────────────────────────────────────────────── */}
-      <div style={{marginBottom:8}}>
-        <div style={{fontSize:13,fontWeight:600,color:"var(--text3)",textTransform:"uppercase",letterSpacing:".05em",marginBottom:14}}>Parc informatique</div>
-      </div>
-      <div className="grid2 mb-20" style={{gap:16}}>
-        <div className="card">
-          <div className="section-title" style={{marginBottom:14}}>Equipements par département</div>
-          <HBarChart
-            data={parc.bysite.map(r=>({name:r.site_name||"Non assigné",count:Number(r.count)}))}
-            labelKey="name" valueKey="count"
-            color="var(--accent)"
-          />
-        </div>
-        <div className="card">
-          <div className="section-title" style={{marginBottom:14}}>Répartition par type et statut</div>
-          <div style={{marginBottom:20}}>
-            <div style={{fontSize:11,color:"var(--text3)",marginBottom:10}}>Par type</div>
-            <DonutChart segments={
-              parc.bytype.map(r => ({
-                label: TYPE_LABELS[r.type] || r.type,
-                value: Number(r.count),
-                color: r.type==="laptop"?"var(--accent)":r.type==="screen"?"var(--info)":r.type==="printer"?"var(--warning)":r.type==="all_in_one"?"var(--accent2)":"var(--success)",
-              }))
-            }/>
-          </div>
-          <div style={{marginTop:16}}>
-            <div style={{fontSize:11,color:"var(--text3)",marginBottom:10}}>Par statut</div>
-            <DonutChart segments={
-              parc.bystatus.map(r => ({
-                label: STATUS_LABELS[r.status] || r.status,
-                value: Number(r.count),
-                color: STATUS_COLORS[r.status] || "var(--text3)",
-              }))
-            }/>
-          </div>
-        </div>
       </div>
 
       {/* ── Maintenances ─────────────────────────────────────── */}
