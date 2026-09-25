@@ -81,9 +81,9 @@ function MaintModal({ maintenance, onClose, onSave, assets, meta }) {
               </div>
             </div>
             <div className="form-grid">
-              <div className="form-group"><label className="form-label">Site (filtre)</label>
+              <div className="form-group"><label className="form-label">Département (filtre)</label>
                 <select className="form-input form-select" value={form.site_filter||""} onChange={e=>{set("site_filter",e.target.value);set("department_id","");}}>
-                  <option value="">— Tous les sites —</option>
+                  <option value="">— Tous les départements —</option>
                   {meta.sites.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>

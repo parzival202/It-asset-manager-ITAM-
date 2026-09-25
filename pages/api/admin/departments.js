@@ -28,7 +28,7 @@ export default async function handler(req, res) {
       // Vérifier site existe
       const siteCheck = await db.execute("SELECT id FROM sites WHERE id = ?", [site_id]);
       if (siteCheck.rows.length === 0) {
-        return res.status(404).json({ error: "Site non trouvé" });
+        return res.status(404).json({ error: "Département non trouvé" });
       }
 
       // Vérifier doublon
@@ -37,7 +37,7 @@ export default async function handler(req, res) {
         [site_id, name]
       );
       if (dupCheck.rows.length > 0) {
-        return res.status(409).json({ error: "Ce département existe déjà sur ce site" });
+        return res.status(409).json({ error: "Ce service existe déjà sur ce département" });
       }
 
       // Insérer

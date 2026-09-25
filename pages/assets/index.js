@@ -16,7 +16,7 @@ const REPORT_FIELDS = [
   { key:"name", label:"Équipement" },
   { key:"type", label:"Type", format: value => TYPE_LABELS[value] || value },
   { key:"status", label:"Statut", format: value => STATUS_LABELS[value] || value },
-  { key:"site_name", label:"Site" },
+  { key:"site_name", label:"Département" },
   { key:"department_name", label:"Service" },
   { key:"assigned_user_name", label:"Utilisateur" },
   { key:"assigned_user_title", label:"Poste utilisateur" },
@@ -98,7 +98,7 @@ function AssetModal({ asset, meta, onClose, onSave }) {
               <div className="form-group"><label className="form-label">Stockage</label><input className="form-input" value={form.storage||""} onChange={e=>set("storage",e.target.value)} placeholder="512 Go SSD"/></div>
             </div>
             <div className="form-grid">
-              <div className="form-group"><label className="form-label">Site</label>
+              <div className="form-group"><label className="form-label">Département</label>
                 <select className="form-input form-select" value={form.site_id||""} onChange={e=>{set("site_id",e.target.value);set("department_id","");}}>
                   <option value="">— Choisir —</option>
                   {meta.sites.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
@@ -172,7 +172,7 @@ function ReportModal({ assets, meta, onClose }) {
     const headers = selectedFields.map(field => field.label);
     const criteria = [
       form.type ? `Type : ${TYPE_LABELS[form.type]}` : null,
-      form.site_id ? `Site : ${meta.sites.find(site => String(site.id) === String(form.site_id))?.name}` : null,
+      form.site_id ? `Département : ${meta.sites.find(site => String(site.id) === String(form.site_id))?.name}` : null,
       form.department_id ? `Service : ${departments.find(department => String(department.id) === String(form.department_id))?.name}` : null,
       form.status ? `Statut : ${STATUS_LABELS[form.status]}` : null,
     ].filter(Boolean);
@@ -210,9 +210,9 @@ function ReportModal({ assets, meta, onClose }) {
             </div>
             <div className="form-grid">
               <div className="form-group">
-                <label className="form-label">Site</label>
+                <label className="form-label">Département</label>
                 <select className="form-input form-select" value={form.site_id} onChange={event => set("site_id", event.target.value)}>
-                  <option value="">Tous les sites</option>
+                  <option value="">Tous les départements</option>
                   {meta.sites.map(site => <option key={site.id} value={site.id}>{site.name}</option>)}
                 </select>
               </div>
@@ -287,7 +287,7 @@ export default function Assets() {
     )},
     { label:"Type",    accessor:"type",       sortable:true, render: r => <span className="badge badge-neutral">{TYPE_LABELS[r.type]||r.type}</span> },
     { label:"Statut",  accessor:"status",     sortable:true, render: r => <span className={`badge badge-${STATUS_COLORS[r.status]||"neutral"}`}>{STATUS_LABELS[r.status]||r.status}</span> },
-    { label:"Site / Service", accessor:"site_name", sortable:true, render: r => (
+    { label:"Département / Service", accessor:"site_name", sortable:true, render: r => (
       <div>
         <div>{r.site_name||"—"}</div>
         {r.department_name && <div style={{fontSize:11,color:"var(--text3)"}}>{r.department_name}</div>}

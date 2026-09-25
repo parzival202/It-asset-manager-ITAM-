@@ -322,7 +322,7 @@ export default function DashboardStats({ title = "Dashboard" }) {
       </div>
       <div className="grid2 mb-20" style={{gap:16}}>
         <div className="card">
-          <div className="section-title" style={{marginBottom:14}}>Equipements par site</div>
+          <div className="section-title" style={{marginBottom:14}}>Equipements par département</div>
           <HBarChart
             data={parc.bysite.map(r=>({name:r.site_name||"Non assigné",count:Number(r.count)}))}
             labelKey="name" valueKey="count"

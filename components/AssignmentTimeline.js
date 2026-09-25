@@ -89,7 +89,7 @@ function AssignModal({ assetId, assetName, assignment, onClose, onSave }) {
 
             <div className="form-grid">
               <div className="form-group">
-                <label className="form-label">Site</label>
+                <label className="form-label">Département</label>
                 <select className="form-input form-select" value={form.site_id} onChange={e=>{set("site_id",e.target.value);set("department_id","");}}>
                   <option value="">— Choisir —</option>
                   {meta.sites.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}

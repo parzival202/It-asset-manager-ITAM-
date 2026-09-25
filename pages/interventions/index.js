@@ -81,7 +81,7 @@ function InterventionModal({ intervention, meta, assets, consumables, onClose, o
 
             <div className="form-grid">
               <div className="form-group">
-                <label className="form-label">Site</label>
+                <label className="form-label">Département</label>
                 <select className="form-input form-select" value={form.site_id||""} onChange={e=>{set("site_id",e.target.value);set("department_id","");}}>
                   <option value="">— Choisir —</option>
                   {meta.sites.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
@@ -278,7 +278,7 @@ export default function Interventions() {
   ];
 
   const totalDuration = interventions.reduce((s, i) => s + (i.duration_min || 0), 0);
-  const reportHeaders=["Titre","Service","Site","Équipement","Technicien","Date","Durée","Statut"];
+  const reportHeaders=["Titre","Service","Département","Équipement","Technicien","Date","Durée","Statut"];
   const reportRows=interventions.map(i=>[i.title,i.department_name||"—",i.site_name||"—",i.asset_name||"—",i.performed_by||"—",fmtDate(i.date),fmtDuration(i.duration_min),STATUS_LABELS[i.status]||i.status]);
 
   return (
@@ -326,7 +326,7 @@ export default function Interventions() {
         filters={
           <>
             <select className="form-input form-select" style={{width:150}} value={filters.site_id} onChange={e=>setFilters(f=>({...f,site_id:e.target.value,department_id:""}))}>
-              <option value="">Tous les sites</option>
+              <option value="">Tous les départements</option>
               {meta.sites.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
             <select className="form-input form-select" style={{width:200}} value={filters.department_id} onChange={e=>setFilters(f=>({...f,department_id:e.target.value}))}>

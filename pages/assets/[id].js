@@ -106,7 +106,7 @@ export default function AssetDetail(){
   const nextMaint=allMaint.filter(m=>m.status==="planned"&&m.scheduled_date).sort((a,b)=>new Date(a.scheduled_date)-new Date(b.scheduled_date))[0];
   const activeAlerts=(asset.alerts||[]).filter(a=>a.status==="active");
   const healthHeaders=["Élément","Valeur"];
-  const healthRows=[["Tag",asset.asset_tag],["Équipement",asset.name],["Type",TYPE_LABELS[asset.type]||asset.type],["Statut",STATUS_LABELS[asset.status]||asset.status],["Marque / modèle",`${asset.brand||"—"} ${asset.model||""}`],["N° de série",asset.serial_number||"—"],["Site",asset.site_name||"—"],["Service",asset.department_name||"—"],["Utilisateur",asset.assigned_user_name||"—"],["Fin de garantie",fmtDate(asset.warranty_end_date)],["Nombre de maintenances",allMaint.length],["Alertes actives",activeAlerts.length]];
+  const healthRows=[["Tag",asset.asset_tag],["Équipement",asset.name],["Type",TYPE_LABELS[asset.type]||asset.type],["Statut",STATUS_LABELS[asset.status]||asset.status],["Marque / modèle",`${asset.brand||"—"} ${asset.model||""}`],["N° de série",asset.serial_number||"—"],["Département",asset.site_name||"—"],["Service",asset.department_name||"—"],["Utilisateur",asset.assigned_user_name||"—"],["Fin de garantie",fmtDate(asset.warranty_end_date)],["Nombre de maintenances",allMaint.length],["Alertes actives",activeAlerts.length]];
   const maintHeaders=["Date","Titre","Type","Statut","Technicien","Pièce remplacée","Coût"];
   const maintRows=allMaint.map(m=>[fmtDate(m.completed_at||m.scheduled_date),m.title,MAINT_TYPES[m.type]||"Intervention",MAINT_STATUS_LABELS[m.status]||m.status,m.tech_name||m.performed_by_name||"—",m.replacement_part||"—",m.cost||"—"]);
 
@@ -174,7 +174,7 @@ export default function AssetDetail(){
 ) : (
   <div className="kv"><span className="kv-label">Utilisateur</span><span style={{fontSize:12,color:"var(--text3)"}}>Non assigné</span></div>
 )}
-          <KV label="Site" value={asset.site_name}/>
+          <KV label="Département" value={asset.site_name}/>
           <KV label="Service" value={asset.department_name}/>
           <KV label="Déployé le" value={fmtDate(asset.deployment_date)}/>
           {asset.deployment_date&&<KV label="Durée en service">{daysAgo(asset.deployment_date)}</KV>}
