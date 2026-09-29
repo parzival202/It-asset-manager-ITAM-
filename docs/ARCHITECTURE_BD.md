@@ -30,7 +30,7 @@ node scripts/seed-db.js
 
 Ce script :
 - Crée les tables si absent
-- Ajoute 3 sites, 43 départements, 2 users, 3 équipements
+- Ajoute 3 sites, 46 départements, 2 users, 3 équipements
 - S'arrête si la base est déjà peuplée (sécurité)
 
 ### 2️⃣ Pendant le développement

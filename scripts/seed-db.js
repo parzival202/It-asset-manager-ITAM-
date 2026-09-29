@@ -19,7 +19,7 @@ async function runSeed() {
     console.log('✅ Seed complète !');
     console.log('\n📋 Données initiales ajoutées :');
     console.log('  • 3 sites (Commercial, Plastique, Cosmétique)');
-    console.log('  • 43 départements');
+    console.log('  • 46 départements');
     console.log('  • 2 utilisateurs (admin123, tech123)');
     console.log('  • 3 équipements de test');
     console.log('\n💡 Pour ajouter des données ultérieurement :');
