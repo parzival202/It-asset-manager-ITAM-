@@ -32,6 +32,12 @@ export default async function handler(req, res) {
   await initDb();
   const db = getDb();
   await syncScheduledMaintenances(db);
+  await db.execute(`
+    UPDATE maintenances
+    SET status = 'overdue', updated_at = datetime('now')
+    WHERE status IN ('planned', 'in_progress')
+      AND COALESCE(end_date, scheduled_date) <= date('now', '-21 days')
+  `);
 
   const [consumableByService, consumableTop, consumableLow] = await Promise.all([
     db.execute(`SELECT COALESCE(d.name,'Non affecté') as name, SUM(ic.quantity) as quantity FROM intervention_consumables ic JOIN interventions i ON i.id=ic.intervention_id LEFT JOIN departments d ON d.id=i.department_id GROUP BY d.id ORDER BY quantity DESC LIMIT 5`),
@@ -90,10 +96,12 @@ export default async function handler(req, res) {
     FROM maintenances m
     LEFT JOIN assets a ON m.asset_id = a.id
     LEFT JOIN departments d ON m.department_id = d.id
-    WHERE m.status IN ('planned', 'in_progress', 'overdue')
+    WHERE m.status IN ('planned', 'in_progress')
       AND m.scheduled_date IS NOT NULL
       AND m.scheduled_date <= date('now', '+14 days')
+      AND m.scheduled_date >= date('now')
     ORDER BY m.scheduled_date ASC
+    LIMIT 6
   `);
 
   // ── Interventions : par service ───────────────────────────────────
@@ -139,7 +147,7 @@ export default async function handler(req, res) {
     SELECT
       (SELECT COUNT(*) FROM assets) as total_assets,
       (SELECT COUNT(*) FROM maintenances WHERE status IN ('planned','in_progress','overdue')) as maint_pending,
-      (SELECT COUNT(*) FROM maintenances WHERE status='planned' AND scheduled_date <= date('now','+14 days') AND scheduled_date >= date('now')) as maint_upcoming,
+      (SELECT COUNT(*) FROM maintenances WHERE status IN ('planned','in_progress') AND scheduled_date <= date('now','+14 days') AND scheduled_date >= date('now')) as maint_upcoming,
       (SELECT COUNT(*) FROM interventions WHERE status IN ('in_progress','planned')) as interv_pending,
       (SELECT COUNT(*) FROM maintenances WHERE type='preventive' AND status='completed') as prev_done,
       (SELECT COUNT(*) FROM maintenances WHERE type='corrective' AND status='completed') as corr_done

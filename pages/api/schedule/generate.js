@@ -81,11 +81,13 @@ export default async function handler(req, res) {
     }
 
     // Alerte si déjà dépassée et pas terminée
-    if (today > endDt) {
+    const overdueThreshold = new Date(endDt);
+    overdueThreshold.setDate(overdueThreshold.getDate() + 21);
+    if (today > overdueThreshold) {
       alertsToCreate.push({
         severity: "critical",
-        title: `Maintenance ${entry.dept_name} — en retard`,
-        message: `La maintenance préventive du service ${entry.dept_name} aurait dû être terminée le ${endDate}.`,
+        title: `Maintenance ${entry.dept_name} — non effectuée`,
+        message: `La maintenance préventive du service ${entry.dept_name} n'a pas été déclarée effectuée dans les trois semaines suivant la date prévue du ${endDate}.`,
         due_date: endDate,
       });
       // Passer le statut à overdue

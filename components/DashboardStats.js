@@ -28,7 +28,7 @@ const TYPE_COLORS   = { laptop:"#4f8ef7", screen:"#a78bfa", uc:"#34d399", printe
 const STATUS_LABELS = { in_service:"En service", maintenance:"En maintenance", retired:"Retiré", storage:"En stock" };
 const STATUS_COLORS = { in_service:"var(--success)", maintenance:"var(--warning)", retired:"var(--text3)", storage:"var(--info)" };
 const MAINT_STATUS_COLORS = { planned:"var(--info)", in_progress:"var(--warning)", overdue:"var(--danger)", completed:"var(--success)" };
-const MAINT_STATUS_LABELS = { planned:"Planifiée", in_progress:"En cours", overdue:"En retard", completed:"Terminée" };
+const MAINT_STATUS_LABELS = { planned:"Planifiée", in_progress:"En cours", overdue:"Non effectuée", completed:"Terminée" };
 
 // ── Composants graphiques purs CSS/SVG ────────────────────────────────
 
@@ -195,8 +195,6 @@ export default function DashboardStats({ title = "Dashboard" }) {
   }, [mounted]);
 
   async function markMaintenanceDone(maintenance) {
-    const confirmed = window.confirm(`Confirmer que la maintenance « ${maintenance.title} » a été effectuée ?`);
-    if (!confirmed) return;
     setUpdatingMaintenance(maintenance.id);
     try {
       await api.maintenances.update(maintenance.id, { status: "completed", completed_at: new Date().toISOString() });
@@ -345,7 +343,7 @@ export default function DashboardStats({ title = "Dashboard" }) {
             </div>
             {maintenances.upcoming.length === 0
               ? <div style={{fontSize:13,color:"var(--text3)",padding:"8px 0"}}>Aucune maintenance planifiée dans les 14 jours</div>
-              : maintenances.upcoming.map(m => (
+              : maintenances.upcoming.slice(0,6).map(m => (
                 <div key={m.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"7px 0",borderBottom:"1px solid var(--border)"}}>
                   <button className="btn btn-ghost btn-sm" style={{textAlign:"left",padding:"4px 6px",height:"auto",minWidth:0,display:"block"}} onClick={()=>openMaintenance(m)}>
                     <div style={{fontSize:13,fontWeight:500}}>{m.title}</div>
@@ -358,6 +356,11 @@ export default function DashboardStats({ title = "Dashboard" }) {
                 </div>
               ))
             }
+            {Number(totals.maint_upcoming) > 6 && (
+              <button className="btn btn-ghost btn-sm" style={{marginTop:8,width:"100%",justifyContent:"center"}} onClick={()=>router.push("/maintenances")}>
+                Voir les {Number(totals.maint_upcoming) - 6} autres →
+              </button>
+            )}
           </div>
 
           <div className="card">
