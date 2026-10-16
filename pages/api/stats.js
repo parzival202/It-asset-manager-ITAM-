@@ -1,11 +1,37 @@
 import { getDb, initDb } from "../../lib/db";
 import { requireAuth } from "../../lib/auth";
+import { PLANNING_2025, weekToDate, entryEndDate } from "../../lib/planningData";
+
+async function syncScheduledMaintenances(db) {
+  const year = new Date().getFullYear();
+  const depts = await db.execute("SELECT id, name FROM departments");
+  const deptMap = Object.fromEntries(depts.rows.map(d => [d.name, d.id]));
+  for (const entry of PLANNING_2025) {
+    const departmentId = deptMap[entry.dept_name];
+    if (!departmentId) continue;
+    const refKey = `schedule_${year}_${entry.month}_${entry.week_start}_${departmentId}`;
+    const startDate = weekToDate(year, entry.month, entry.week_start);
+    const endDate = entryEndDate(year, entry.month, entry.week_start, entry.duration);
+    await db.execute({
+      sql: `INSERT INTO maintenances
+            (asset_id, type, status, title, description, scheduled_date, end_date, department_id, source, ref_key)
+            VALUES (NULL, 'preventive', 'planned', ?, ?, ?, ?, ?, 'schedule', ?)
+            ON CONFLICT(ref_key) DO NOTHING`,
+      args: [
+        `Maintenance préventive — ${entry.dept_name}`,
+        `Maintenance préventive annuelle du service ${entry.dept_name}. Période : du ${startDate} au ${endDate}.`,
+        startDate, endDate, departmentId, refKey
+      ]
+    });
+  }
+}
 
 export default async function handler(req, res) {
   const user = await requireAuth(req, res);
   if (!user) return;
   await initDb();
   const db = getDb();
+  await syncScheduledMaintenances(db);
 
   const [consumableByService, consumableTop, consumableLow] = await Promise.all([
     db.execute(`SELECT COALESCE(d.name,'Non affecté') as name, SUM(ic.quantity) as quantity FROM intervention_consumables ic JOIN interventions i ON i.id=ic.intervention_id LEFT JOIN departments d ON d.id=i.department_id GROUP BY d.id ORDER BY quantity DESC LIMIT 5`),
@@ -50,22 +76,23 @@ export default async function handler(req, res) {
 
   // ── Maintenances non terminées ────────────────────────────────────
   const maintPending = await db.execute(`
-    SELECT m.*, a.name as asset_name, a.asset_tag
+    SELECT m.*, a.name as asset_name, a.asset_tag, d.name as dept_name
     FROM maintenances m
     LEFT JOIN assets a ON m.asset_id = a.id
+    LEFT JOIN departments d ON m.department_id = d.id
     WHERE m.status IN ('planned', 'in_progress', 'overdue')
     ORDER BY COALESCE(m.scheduled_date, m.created_at) ASC
   `);
 
   // ── Maintenances à venir dans 14 jours ───────────────────────────
   const maintUpcoming = await db.execute(`
-    SELECT m.*, a.name as asset_name, a.asset_tag
+    SELECT m.*, a.name as asset_name, a.asset_tag, d.name as dept_name
     FROM maintenances m
     LEFT JOIN assets a ON m.asset_id = a.id
-    WHERE m.status = 'planned'
+    LEFT JOIN departments d ON m.department_id = d.id
+    WHERE m.status IN ('planned', 'in_progress', 'overdue')
       AND m.scheduled_date IS NOT NULL
       AND m.scheduled_date <= date('now', '+14 days')
-      AND m.scheduled_date >= date('now')
     ORDER BY m.scheduled_date ASC
   `);
 

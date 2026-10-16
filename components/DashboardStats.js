@@ -182,12 +182,41 @@ export default function DashboardStats({ title = "Dashboard" }) {
   const [data, setData]     = useState(null);
   const [loading, setLoad]  = useState(true);
   const [mounted, setMounted] = useState(false);
+  const [updatingMaintenance, setUpdatingMaintenance] = useState(null);
 
   useEffect(() => { setMounted(true); }, []);
+  async function loadStats() {
+    setData(await api.stats());
+  }
+
   useEffect(() => {
     if (!mounted) return;
-    api.stats().then(setData).catch(console.error).finally(() => setLoad(false));
+    loadStats().catch(console.error).finally(() => setLoad(false));
   }, [mounted]);
+
+  async function markMaintenanceDone(maintenance) {
+    const confirmed = window.confirm(`Confirmer que la maintenance « ${maintenance.title} » a été effectuée ?`);
+    if (!confirmed) return;
+    setUpdatingMaintenance(maintenance.id);
+    try {
+      await api.maintenances.update(maintenance.id, { status: "completed", completed_at: new Date().toISOString() });
+      await loadStats();
+    } catch (err) {
+      window.alert(err.message || "Impossible de mettre à jour cette maintenance.");
+    } finally {
+      setUpdatingMaintenance(null);
+    }
+  }
+
+  function openMaintenance(maintenance) {
+    router.push("/maintenances");
+  }
+
+  function maintenanceLocation(m) {
+    return m.asset_name
+      ? `${m.asset_name}${m.asset_tag ? ` · ${m.asset_tag}` : ""}`
+      : (m.dept_name || "Service entier");
+  }
 
   if (loading) return (
     <Layout title={title} alertCount={alertCount}>
@@ -288,14 +317,15 @@ export default function DashboardStats({ title = "Dashboard" }) {
           {maintenances.pending.length === 0
             ? <div className="empty-state" style={{padding:"16px 0"}}><p>Toutes les maintenances sont terminées ✓</p></div>
             : maintenances.pending.slice(0,6).map(m => (
-              <div key={m.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid var(--border)"}}>
-                <div>
+              <div key={m.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"7px 0",borderBottom:"1px solid var(--border)"}}>
+                <button className="btn btn-ghost btn-sm" style={{textAlign:"left",padding:"4px 6px",height:"auto",minWidth:0,display:"block"}} onClick={()=>openMaintenance(m)}>
                   <div style={{fontSize:13,fontWeight:500}}>{m.title}</div>
-                  <div style={{fontSize:11,color:"var(--text3)",marginTop:2}}>{m.asset_name} {m.asset_tag && `· ${m.asset_tag}`}</div>
-                </div>
+                  <div style={{fontSize:11,color:"var(--text3)",marginTop:2}}>{maintenanceLocation(m)}</div>
+                </button>
                 <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
                   {m.scheduled_date && <span style={{fontSize:11,color:"var(--text3)"}}>{fmtDate(m.scheduled_date)}</span>}
                   <span style={{fontSize:11,padding:"2px 8px",borderRadius:20,background:`${MAINT_STATUS_COLORS[m.status]}15`,color:MAINT_STATUS_COLORS[m.status]}}>{MAINT_STATUS_LABELS[m.status]||m.status}</span>
+                  {m.type === "preventive" && <button className="btn btn-primary btn-sm" disabled={updatingMaintenance===m.id} onClick={()=>markMaintenanceDone(m)}>{updatingMaintenance===m.id?"...":"✓ Effectuée"}</button>}
                 </div>
               </div>
             ))
@@ -316,12 +346,15 @@ export default function DashboardStats({ title = "Dashboard" }) {
             {maintenances.upcoming.length === 0
               ? <div style={{fontSize:13,color:"var(--text3)",padding:"8px 0"}}>Aucune maintenance planifiée dans les 14 jours</div>
               : maintenances.upcoming.map(m => (
-                <div key={m.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid var(--border)"}}>
-                  <div>
+                <div key={m.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"7px 0",borderBottom:"1px solid var(--border)"}}>
+                  <button className="btn btn-ghost btn-sm" style={{textAlign:"left",padding:"4px 6px",height:"auto",minWidth:0,display:"block"}} onClick={()=>openMaintenance(m)}>
                     <div style={{fontSize:13,fontWeight:500}}>{m.title}</div>
-                    <div style={{fontSize:11,color:"var(--text3)",marginTop:1}}>{m.asset_name}</div>
+                    <div style={{fontSize:11,color:"var(--text3)",marginTop:1}}>{maintenanceLocation(m)}</div>
+                  </button>
+                  <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+                    <span style={{fontSize:12,color:"var(--warning)",fontWeight:500}}>{daysFrom(m.scheduled_date)}</span>
+                    {m.type === "preventive" && <button className="btn btn-primary btn-sm" disabled={updatingMaintenance===m.id} onClick={()=>markMaintenanceDone(m)}>{updatingMaintenance===m.id?"...":"✓ Effectuée"}</button>}
                   </div>
-                  <span style={{fontSize:12,color:"var(--warning)",fontWeight:500,flexShrink:0}}>{daysFrom(m.scheduled_date)}</span>
                 </div>
               ))
             }
