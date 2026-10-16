@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Layout from "../../components/Layout";
 import DataTable from "../../components/DataTable";
 import { useMaintenances } from "../../hooks/useMaintenances";
@@ -6,7 +6,7 @@ import { useAlerts } from "../../hooks/useAlerts";
 import { useMeta } from "../../hooks/useMeta";
 import { useAssets } from "../../hooks/useAssets";
 import { api } from "../../lib/api";
-import { PLANNING_2025, MONTH_NAMES } from "../../lib/planningData";
+import { PLANNING_2025, MONTH_NAMES, weekToDate, entryEndDate } from "../../lib/planningData";
 import { downloadExcel, printReport } from "../../lib/reportExport";
 
 const MAINT_TYPES   = { preventive:"Préventive", corrective:"Corrective", replacement:"Remplacement", deployment:"Déploiement" };
@@ -148,32 +148,31 @@ function startOfDay(date) {
   d.setHours(0, 0, 0, 0);
   return d;
 }
-
 function sameDay(a, b) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
-
 function monthDayCount(year, month) {
   return new Date(year, month, 0).getDate();
 }
+function dateKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
 
 function planRange(year, entry) {
-  const startDay = (entry.week_start - 1) * 7 + 1;
-  const endDay = Math.min(monthDayCount(year, entry.month), startDay + entry.duration * 7 - 1);
+  const startDate = weekToDate(year, entry.month, entry.week_start);
+  const endDate = entryEndDate(year, entry.month, entry.week_start, entry.duration);
+  const [startYear, startMonth, startDay] = startDate.split("-").map(Number);
+  const [endYear, endMonth, endDay] = endDate.split("-").map(Number);
   return {
-    start: startOfDay(new Date(year, entry.month - 1, startDay)),
-    end: startOfDay(new Date(year, entry.month - 1, endDay)),
-    startDay,
-    endDay,
+    start: startOfDay(new Date(startYear, startMonth - 1, startDay)),
+    end: startOfDay(new Date(endYear, endMonth - 1, endDay)),
   };
 }
 
-function entriesForDay(date, ticketByDept) {
+function entriesForDay(date, monthPlans) {
   const day = startOfDay(date);
-  return PLANNING_2025
-    .filter(entry => entry.month === day.getMonth() + 1)
-    .map(entry => ({ entry, range: planRange(day.getFullYear(), entry), ticket: ticketByDept[entry.dept_name] }))
-    .filter(item => day >= item.range.start && day <= item.range.end);
+  if (day.getDay() === 0 || day.getDay() === 6) return [];
+  return monthPlans.filter(item => day >= item.range.start && day <= item.range.end);
 }
 
 function statusInfo(item, today) {
@@ -187,7 +186,7 @@ function statusInfo(item, today) {
 }
 
 // ── Vue agenda réel avec alertes planning ──────────────────────────────
-function CalendarView({ scheduleTickets, onGenerate, generating }) {
+function CalendarView({ scheduleTickets, onGenerate, generating, onLoadYear }) {
   const today = startOfDay(new Date());
   const [viewDate, setViewDate] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
   const year = viewDate.getFullYear();
@@ -197,8 +196,10 @@ function CalendarView({ scheduleTickets, onGenerate, generating }) {
   const leadingBlankDays = (firstDay.getDay() + 6) % 7;
   const totalCells = Math.ceil((leadingBlankDays + daysInView) / 7) * 7;
 
-  const ticketByDept = {};
-  (scheduleTickets || []).forEach(t => { ticketByDept[t.dept_name] = t; });
+  useEffect(() => { onLoadYear(year); }, [year, onLoadYear]);
+
+  const ticketByDeptDate = {};
+  (scheduleTickets || []).forEach(t => { ticketByDeptDate[`${t.dept_name}|${t.scheduled_date}`] = t; });
 
   const cells = Array.from({ length: totalCells }, (_, index) => {
     const dayNumber = index - leadingBlankDays + 1;
@@ -206,9 +207,14 @@ function CalendarView({ scheduleTickets, onGenerate, generating }) {
     return new Date(year, month - 1, dayNumber);
   });
 
-  const monthPlans = PLANNING_2025
-    .filter(entry => entry.month === month)
-    .map(entry => ({ entry, range: planRange(year, entry), ticket: ticketByDept[entry.dept_name] }));
+  const monthStart = startOfDay(new Date(year, month - 1, 1));
+  const monthEnd = startOfDay(new Date(year, month, 0));
+  const monthPlans = [year - 1, year].flatMap(scheduleYear => PLANNING_2025
+    .map(entry => {
+      const range = planRange(scheduleYear, entry);
+      return { entry, range, ticket: ticketByDeptDate[`${entry.dept_name}|${dateKey(range.start)}`] };
+    })
+    .filter(item => item.range.start <= monthEnd && item.range.end >= monthStart));
 
   const goMonth = offset => setViewDate(d => new Date(d.getFullYear(), d.getMonth() + offset, 1));
   const goToday = () => setViewDate(new Date(today.getFullYear(), today.getMonth(), 1));
@@ -218,7 +224,7 @@ function CalendarView({ scheduleTickets, onGenerate, generating }) {
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,marginBottom:16,flexWrap:"wrap"}}>
         <div>
           <div style={{fontSize:13,color:"var(--text2)"}}>
-            Agenda réel des maintenances préventives {year}. Les services sont placés sur les jours couverts par leur semaine de planning.
+            Agenda réel des maintenances préventives {year}. Durées calculées en jours ouvrés, du lundi au vendredi ; samedi et dimanche sont exclus.
           </div>
         </div>
         <button className="btn btn-primary" onClick={onGenerate} disabled={generating}>
@@ -251,10 +257,10 @@ function CalendarView({ scheduleTickets, onGenerate, generating }) {
 
         <div style={{display:"grid",gridTemplateColumns:"repeat(7, minmax(120px, 1fr))",overflowX:"auto"}}>
           {cells.map((date, index) => {
-            const items = date ? entriesForDay(date, ticketByDept) : [];
+            const items = date ? entriesForDay(date, monthPlans) : [];
             const isToday = date && sameDay(date, today);
             return (
-              <div key={index} style={{minHeight:108,padding:8,borderRight:"1px solid var(--border)",borderBottom:"1px solid var(--border)",background:isToday?"rgba(79,142,247,0.06)":"transparent"}}>
+              <div key={index} style={{minHeight:140,padding:8,borderRight:"1px solid var(--border)",borderBottom:"1px solid var(--border)",background:isToday?"rgba(79,142,247,0.06)":"transparent"}}>
                 {date && (
                   <>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
@@ -267,10 +273,11 @@ function CalendarView({ scheduleTickets, onGenerate, generating }) {
                       {items.map(item => {
                         const info = statusInfo(item, today);
                         return (
-                          <div key={`${item.entry.dept_name}-${item.entry.week_start}`} style={{padding:"5px 7px",borderRadius:6,background:info.bg,border:`1px solid ${info.border}`,minWidth:0}} title={`${item.entry.dept_name} · du ${String(item.range.startDay).padStart(2, "0")} au ${String(item.range.endDay).padStart(2, "0")} ${MONTH_NAMES[item.entry.month - 1]}`}>
+                          <div key={`${item.entry.dept_name}-${item.entry.month}-${item.entry.week_start}`} style={{padding:"5px 7px",borderRadius:6,background:info.bg,border:`1px solid ${info.border}`,minWidth:0}} title={`${item.entry.dept_name} · préventive · du ${fmtDate(item.range.start)} au ${fmtDate(item.range.end)}`}>
                             <div style={{fontSize:11,fontWeight:700,color:"var(--text2)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{item.entry.dept_name}</div>
+                            <div style={{fontSize:9,color:"var(--text3)",marginTop:2}}>Préventive · {fmtDate(item.range.start)}–{fmtDate(item.range.end)}</div>
                             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,marginTop:3}}>
-                              <span style={{fontSize:10,color:"var(--text3)"}}>S{item.entry.week_start} à S{item.entry.week_start + item.entry.duration - 1}</span>
+                              <span style={{fontSize:9,color:"var(--text3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>Tech. : {item.ticket?.tech_name || item.ticket?.performed_by_name || "Non assigné"}</span>
                               <span className={`badge badge-${info.badge}`} style={{fontSize:9}}>{info.label}</span>
                             </div>
                           </div>
@@ -294,10 +301,11 @@ function CalendarView({ scheduleTickets, onGenerate, generating }) {
             {monthPlans.map(item => {
               const info = statusInfo(item, today);
               return (
-                <div key={`${item.entry.dept_name}-${item.entry.week_start}`} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:"10px 12px",border:"1px solid var(--border)",borderRadius:8,background:"var(--bg2)"}}>
+                <div key={`${item.entry.dept_name}-${item.entry.month}-${item.entry.week_start}`} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:"10px 12px",border:"1px solid var(--border)",borderRadius:8,background:"var(--bg2)"}}>
                   <div style={{minWidth:0}}>
                     <div style={{fontSize:13,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{item.entry.dept_name}</div>
-                    <div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>Du {String(item.range.startDay).padStart(2, "0")} au {String(item.range.endDay).padStart(2, "0")} {MONTH_NAMES[month - 1]}</div>
+                    <div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>Préventive · du {fmtDate(item.range.start)} au {fmtDate(item.range.end)}</div>
+                    <div style={{fontSize:11,color:"var(--text3)",marginTop:2}}>Technicien : {item.ticket?.tech_name || item.ticket?.performed_by_name || "Non assigné"}</div>
                   </div>
                   <span className={`badge badge-${info.badge}`} style={{flexShrink:0}}>{info.label}</span>
                 </div>
@@ -323,19 +331,24 @@ export default function Maintenances() {
   const meta                  = useMeta();
   const { assets }            = useAssets({});
 
+  const loadScheduleYear = useCallback(async year => {
+    const years = [year - 1, year];
+    const results = await Promise.all(years.map(scheduleYear => api.schedule.list(scheduleYear)));
+    setScheduleTickets(results.flat());
+  }, []);
+
   useEffect(()=>{ setMounted(true); },[]);
   useEffect(()=>{
     if (!mounted) return;
-    api.schedule.list().then(setScheduleTickets).catch(()=>{});
-  },[mounted]);
+    loadScheduleYear(new Date().getFullYear()).catch(()=>{});
+  },[mounted,loadScheduleYear]);
 
   async function handleGenerate() {
     setGen(true);
     try {
       await api.schedule.generate();
       await api.schedule.checkAlerts();
-      const tickets = await api.schedule.list();
-      setScheduleTickets(tickets);
+      await loadScheduleYear(new Date().getFullYear());
       alert("Tickets générés avec succès ! Les alertes ont été mises à jour.");
     } catch(err) { alert(err.message); }
     finally { setGen(false); }
@@ -446,6 +459,7 @@ export default function Maintenances() {
           scheduleTickets={scheduleTickets}
           onGenerate={handleGenerate}
           generating={generating}
+          onLoadYear={loadScheduleYear}
         />
       )}
 

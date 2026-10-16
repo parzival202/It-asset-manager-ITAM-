@@ -29,6 +29,7 @@ const STATUS_LABELS = { in_service:"En service", maintenance:"En maintenance", r
 const STATUS_COLORS = { in_service:"var(--success)", maintenance:"var(--warning)", retired:"var(--text3)", storage:"var(--info)" };
 const MAINT_STATUS_COLORS = { planned:"var(--info)", in_progress:"var(--warning)", overdue:"var(--danger)", completed:"var(--success)" };
 const MAINT_STATUS_LABELS = { planned:"Planifiée", in_progress:"En cours", overdue:"Non effectuée", completed:"Terminée" };
+const MAINT_TYPE_LABELS = { preventive:"Préventive", corrective:"Corrective", replacement:"Remplacement", deployment:"Déploiement" };
 
 // ── Composants graphiques purs CSS/SVG ────────────────────────────────
 
@@ -347,7 +348,8 @@ export default function DashboardStats({ title = "Dashboard" }) {
                 <div key={m.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"7px 0",borderBottom:"1px solid var(--border)"}}>
                   <button className="btn btn-ghost btn-sm" style={{textAlign:"left",padding:"4px 6px",height:"auto",minWidth:0,display:"block"}} onClick={()=>openMaintenance(m)}>
                     <div style={{fontSize:13,fontWeight:500}}>{m.title}</div>
-                    <div style={{fontSize:11,color:"var(--text3)",marginTop:1}}>{maintenanceLocation(m)}</div>
+                    <div style={{fontSize:11,color:"var(--text3)",marginTop:1}}>{maintenanceLocation(m)} · {MAINT_TYPE_LABELS[m.type]||m.type}</div>
+                    <div style={{fontSize:10,color:"var(--text3)",marginTop:2}}>Du {fmtDate(m.scheduled_date)} au {fmtDate(m.end_date)} · Technicien : {m.tech_name||m.performed_by_name||"Non assigné"}</div>
                   </button>
                   <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
                     <span style={{fontSize:12,color:"var(--warning)",fontWeight:500}}>{daysFrom(m.scheduled_date)}</span>

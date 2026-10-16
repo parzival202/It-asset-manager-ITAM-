@@ -16,7 +16,9 @@ async function syncScheduledMaintenances(db) {
       sql: `INSERT INTO maintenances
             (asset_id, type, status, title, description, scheduled_date, end_date, department_id, source, ref_key)
             VALUES (NULL, 'preventive', 'planned', ?, ?, ?, ?, ?, 'schedule', ?)
-            ON CONFLICT(ref_key) DO NOTHING`,
+            ON CONFLICT(ref_key) DO UPDATE SET
+              scheduled_date = excluded.scheduled_date,
+              end_date = excluded.end_date`,
       args: [
         `Maintenance préventive — ${entry.dept_name}`,
         `Maintenance préventive annuelle du service ${entry.dept_name}. Période : du ${startDate} au ${endDate}.`,
@@ -82,20 +84,24 @@ export default async function handler(req, res) {
 
   // ── Maintenances non terminées ────────────────────────────────────
   const maintPending = await db.execute(`
-    SELECT m.*, a.name as asset_name, a.asset_tag, d.name as dept_name
+    SELECT m.*, a.name as asset_name, a.asset_tag, d.name as dept_name,
+           COALESCE(m.performed_by_name, u.full_name) as tech_name
     FROM maintenances m
     LEFT JOIN assets a ON m.asset_id = a.id
     LEFT JOIN departments d ON m.department_id = d.id
+    LEFT JOIN users u ON m.performed_by_user_id = u.id
     WHERE m.status IN ('planned', 'in_progress', 'overdue')
     ORDER BY COALESCE(m.scheduled_date, m.created_at) ASC
   `);
 
   // ── Maintenances à venir dans 14 jours ───────────────────────────
   const maintUpcoming = await db.execute(`
-    SELECT m.*, a.name as asset_name, a.asset_tag, d.name as dept_name
+    SELECT m.*, a.name as asset_name, a.asset_tag, d.name as dept_name,
+           COALESCE(m.performed_by_name, u.full_name) as tech_name
     FROM maintenances m
     LEFT JOIN assets a ON m.asset_id = a.id
     LEFT JOIN departments d ON m.department_id = d.id
+    LEFT JOIN users u ON m.performed_by_user_id = u.id
     WHERE m.status IN ('planned', 'in_progress')
       AND m.scheduled_date IS NOT NULL
       AND m.scheduled_date <= date('now', '+14 days')
