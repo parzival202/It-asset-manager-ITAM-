@@ -5,6 +5,7 @@ import DataTable from "../../components/DataTable";
 import { useAssets } from "../../hooks/useAssets";
 import { useAlerts } from "../../hooks/useAlerts";
 import { useMeta } from "../../hooks/useMeta";
+import { useFormExitGuard } from "../../hooks/useFormExitGuard";
 import { api } from "../../lib/api";
 import { downloadExcel, printReport } from "../../lib/reportExport";
 
@@ -50,22 +51,23 @@ function warrantyBadge(d) {
 function AssetModal({ asset, meta, onClose, onSave }) {
   const [form, setForm] = useState(asset || { type:"laptop", status:"in_service", maintenance_interval_days:180 });
   const [loading, setLoading] = useState(false);
+  const requestClose = useFormExitGuard(form, onClose);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const filteredDepts = meta.deptsBySite(form.site_id);
 
   async function submit(e) {
     e.preventDefault(); setLoading(true);
-    try { await onSave(form); onClose(); }
+    try { await onSave(form); requestClose(true); }
     catch (err) { alert(err.message); }
     finally { setLoading(false); }
   }
 
   return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && requestClose()}>
       <div className="modal">
         <div className="modal-header">
           <h3>{asset ? "Modifier l'équipement" : "Ajouter un équipement"}</h3>
-          <button onClick={onClose} style={{background:"none",border:"none",color:"var(--text2)",cursor:"pointer",fontSize:20}}>×</button>
+          <button type="button" onClick={() => requestClose()} style={{background:"none",border:"none",color:"var(--text2)",cursor:"pointer",fontSize:20}}>×</button>
         </div>
         <form onSubmit={submit}>
           <div className="modal-body">
@@ -131,7 +133,7 @@ function AssetModal({ asset, meta, onClose, onSave }) {
             <div className="form-group"><label className="form-label">Notes techniques</label><textarea className="form-input" value={form.notes||""} onChange={e=>set("notes",e.target.value)}/></div>
           </div>
           <div className="modal-footer">
-            <button type="button" className="btn btn-ghost" onClick={onClose}>Annuler</button>
+            <button type="button" className="btn btn-ghost" onClick={() => requestClose()}>Annuler</button>
             <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? "Enregistrement..." : asset ? "Modifier" : "Ajouter"}</button>
           </div>
         </form>
@@ -145,6 +147,7 @@ function ReportModal({ assets, meta, onClose }) {
     type:"", site_id:"", department_id:"", status:"", format:"excel",
     fields: Object.fromEntries(REPORT_FIELDS.map(field => [field.key, true])),
   });
+  const requestClose = useFormExitGuard(form, onClose);
   const set = (key, value) => setForm(current => ({ ...current, [key]: value, ...(key === "site_id" ? { department_id:"" } : {}) }));
   const departments = meta.deptsBySite(form.site_id);
   const filteredAssets = assets.filter(asset =>
@@ -179,15 +182,15 @@ function ReportModal({ assets, meta, onClose }) {
     const subtitle = `${filteredAssets.length} équipement(s) · ${criteria.length ? criteria.join(" · ") : "Tous les équipements"}`;
     if (form.format === "excel") downloadExcel("rapport-equipements", headers, rows);
     else printReport("Rapport des équipements", headers, rows, subtitle);
-    onClose();
+    requestClose(true);
   }
 
   return (
-    <div className="modal-overlay" onClick={event => event.target === event.currentTarget && onClose()}>
+    <div className="modal-overlay" onClick={event => event.target === event.currentTarget && requestClose()}>
       <div className="modal" style={{ maxWidth: 560 }}>
         <div className="modal-header">
           <h3>Générer un rapport</h3>
-          <button onClick={onClose} style={{background:"none",border:"none",color:"var(--text2)",cursor:"pointer",fontSize:20}}>×</button>
+          <button type="button" onClick={() => requestClose()} style={{background:"none",border:"none",color:"var(--text2)",cursor:"pointer",fontSize:20}}>×</button>
         </div>
         <form onSubmit={submit}>
           <div className="modal-body">
@@ -255,7 +258,7 @@ function ReportModal({ assets, meta, onClose }) {
             <div style={{ fontSize:12, color:"var(--text3)" }}>{filteredAssets.length} équipement(s) correspondent aux critères.</div>
           </div>
           <div className="modal-footer">
-            <button type="button" className="btn btn-ghost" onClick={onClose}>Annuler</button>
+            <button type="button" className="btn btn-ghost" onClick={() => requestClose()}>Annuler</button>
             <button type="submit" className="btn btn-primary">Générer le rapport</button>
           </div>
         </form>
@@ -266,7 +269,7 @@ function ReportModal({ assets, meta, onClose }) {
 
 export default function Assets() {
   const router = useRouter();
-  const [filters, setFilters] = useState({ search:"", type:"", status:"" });
+  const [filters, setFilters] = useState({ search:"", type:"", status:"", site_id:"", department_id:"" });
   const [modal, setModal]     = useState(false);
   const [reportModal, setReportModal] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -274,6 +277,7 @@ export default function Assets() {
   const { assets: reportAssets, reload: reportReload } = useAssets({});
   const { alertCount }  = useAlerts();
   const meta = useMeta();
+  const departments = meta.deptsBySite(filters.site_id);
 
   const setFilter = (k, v) => setFilters(f => ({ ...f, [k]: v }));
 
@@ -341,6 +345,14 @@ export default function Assets() {
         pageSize={25}
         filters={
           <>
+            <select className="form-input form-select" style={{width:170}} value={filters.site_id} onChange={e=>setFilters(f=>({...f,site_id:e.target.value,department_id:""}))}>
+              <option value="">Tous les départements</option>
+              {meta.sites.map(site=><option key={site.id} value={site.id}>{site.name}</option>)}
+            </select>
+            <select className="form-input form-select" style={{width:170}} value={filters.department_id} onChange={e=>setFilter("department_id",e.target.value)}>
+              <option value="">Tous les services</option>
+              {departments.map(department=><option key={department.id} value={department.id}>{department.name}</option>)}
+            </select>
             <select className="form-input form-select" style={{width:150}} value={filters.type} onChange={e=>setFilter("type",e.target.value)}>
               <option value="">Tous les types</option>
               {Object.entries(TYPE_LABELS).map(([v,l])=><option key={v} value={v}>{l}</option>)}
@@ -349,7 +361,7 @@ export default function Assets() {
               <option value="">Tous les statuts</option>
               {Object.entries(STATUS_LABELS).map(([v,l])=><option key={v} value={v}>{l}</option>)}
             </select>
-            {(filters.type||filters.status) && <button className="btn btn-ghost btn-sm" onClick={()=>setFilters(f=>({...f,type:"",status:""}))}>Effacer</button>}
+            {(filters.type||filters.status||filters.site_id||filters.department_id) && <button className="btn btn-ghost btn-sm" onClick={()=>setFilters({search:"",type:"",status:"",site_id:"",department_id:""})}>Effacer</button>}
           </>
         }
       />

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMeta } from "../hooks/useMeta";
+import { useFormExitGuard } from "../hooks/useFormExitGuard";
 
 function fmtDate(d) {
   if (!d) return "—";
@@ -41,6 +42,7 @@ function AssignModal({ assetId, assetName, assignment, onClose, onSave }) {
 
   const [loading, setLoad] = useState(false);
   const [error, setError]  = useState("");
+  const requestClose = useFormExitGuard(form, onClose);
   const set   = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const depts = meta.deptsBySite(form.site_id);
 
@@ -50,17 +52,17 @@ function AssignModal({ assetId, assetName, assignment, onClose, onSave }) {
     setLoad(true); setError("");
     try {
       await onSave({ ...form, asset_id: assetId });
-      onClose();
+      requestClose(true);
     } catch (err) { setError(err.message); }
     finally { setLoad(false); }
   }
 
   return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && requestClose()}>
       <div className="modal" style={{ maxWidth: 520 }}>
         <div className="modal-header">
           <h3>{isEdit ? "Modifier l'affectation" : "Nouvelle affectation"}</h3>
-          <button onClick={onClose} style={{ background:"none",border:"none",color:"var(--text2)",cursor:"pointer",fontSize:20 }}>×</button>
+          <button type="button" onClick={() => requestClose()} style={{ background:"none",border:"none",color:"var(--text2)",cursor:"pointer",fontSize:20 }}>×</button>
         </div>
         <form onSubmit={submit}>
           <div className="modal-body">
@@ -123,7 +125,7 @@ function AssignModal({ assetId, assetName, assignment, onClose, onSave }) {
             </div>
           </div>
           <div className="modal-footer">
-            <button type="button" className="btn btn-ghost" onClick={onClose}>Annuler</button>
+            <button type="button" className="btn btn-ghost" onClick={() => requestClose()}>Annuler</button>
             <button type="submit" className="btn btn-primary" disabled={loading}>
               {loading ? "Enregistrement..." : isEdit ? "Modifier" : "Affecter"}
             </button>

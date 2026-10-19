@@ -7,6 +7,7 @@ import { useInterventions } from "../../hooks/useInterventions";
 import { useAlerts } from "../../hooks/useAlerts";
 import { useMeta } from "../../hooks/useMeta";
 import { useAssets } from "../../hooks/useAssets";
+import { useFormExitGuard } from "../../hooks/useFormExitGuard";
 
 function fmtDate(d) {
   if (!d) return "—";
@@ -39,6 +40,7 @@ function InterventionModal({ intervention, meta, assets, consumables, onClose, o
     const [form, setForm] = useState(intervention ? {...intervention, intervention_type: intervention.intervention_type || "dépannage", asset_status: intervention.asset_status || "in_service", consumables: intervention.consumables_json ? JSON.parse(intervention.consumables_json).map(line => ({...line, color_quantities: parseColorQuantities(line.color_quantities)})) : []} : { status:"done", intervention_type:"dépannage", asset_status:"in_service", date: today, consumables:[] });
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
+  const requestClose = useFormExitGuard(form, onClose);
   const set = (k,v) => setForm(f => ({...f, [k]: v}));
   const depts = meta.deptsBySite(form.site_id);
   const addConsumable=()=>set("consumables",[...(form.consumables||[]),{consumable_id:"",quantity:1,color_quantities:{}}]);
@@ -51,17 +53,17 @@ function InterventionModal({ intervention, meta, assets, consumables, onClose, o
     if (!form.title?.trim()) { setError("Le titre est requis"); return; }
     if (!form.date)           { setError("La date est requise"); return; }
     setLoading(true); setError("");
-    try { await onSave(form); onClose(); }
+    try { await onSave(form); requestClose(true); }
     catch (err) { setError(err.message); }
     finally { setLoading(false); }
   }
 
   return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && requestClose()}>
       <div className="modal" style={{ maxWidth:560 }}>
         <div className="modal-header">
           <h3>{isEdit ? "Modifier l'intervention" : "Nouvelle intervention"}</h3>
-          <button onClick={onClose} style={{background:"none",border:"none",color:"var(--text2)",cursor:"pointer",fontSize:20}}>×</button>
+          <button type="button" onClick={() => requestClose()} style={{background:"none",border:"none",color:"var(--text2)",cursor:"pointer",fontSize:20}}>×</button>
         </div>
         <form onSubmit={submit}>
           <div className="modal-body">
@@ -154,7 +156,7 @@ function InterventionModal({ intervention, meta, assets, consumables, onClose, o
             </div>
           </div>
           <div className="modal-footer">
-            <button type="button" className="btn btn-ghost" onClick={onClose}>Annuler</button>
+            <button type="button" className="btn btn-ghost" onClick={() => requestClose()}>Annuler</button>
             <button type="submit" className="btn btn-primary" disabled={loading}>
               {loading ? "Enregistrement..." : isEdit ? "Modifier" : "Enregistrer"}
             </button>

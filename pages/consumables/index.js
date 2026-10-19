@@ -5,6 +5,7 @@ import { api } from "../../lib/api";
 import { useAlerts } from "../../hooks/useAlerts";
 import { useMeta } from "../../hooks/useMeta";
 import { useAssets } from "../../hooks/useAssets";
+import { useFormExitGuard } from "../../hooks/useFormExitGuard";
 
 const CATS = { toner: "Toner / cartouche", drum: "Tambour", ribbon: "Ruban", ssd: "Disque SSD", power_supply: "Boîtier d’alimentation" };
 const CARTRIDGE_TYPES = { monochrome: "Monochrome", color: "Couleur" };
@@ -43,10 +44,72 @@ function MovementHistory({ rows }) {
 
 function Modal({ item, onClose, onSave }) {
   const [form, setForm] = useState({ ...item, category: item?.category || "toner", cartridge_type: item?.cartridge_type || "monochrome", minimum_qty: item?.minimum_qty || 0, initial_qty: item?.initial_qty ?? item?.stock_qty ?? 0, color_stock: parseStock(item?.color_stock) });
+  const requestClose = useFormExitGuard(form, onClose);
   const set = (key, value) => setForm(current => ({ ...current, [key]: value }));
   const setColor = (key, value) => setForm(current => ({ ...current, color_stock: { ...(current.color_stock || {}), [key]: value } }));
   const isCartridge = form.category === "toner";
-  return <div className="modal-overlay" onClick={event => event.target === event.currentTarget && onClose()}><div className="modal" style={{ maxWidth: 600 }}><div className="modal-header"><h3>{item ? "Modifier le consommable" : "Nouveau consommable"}</h3><button onClick={onClose}>×</button></div><form onSubmit={async event => { event.preventDefault(); await onSave(form); onClose(); }}><div className="modal-body"><div className="form-grid"><div className="form-group"><label className="form-label">Référence *</label><input required className="form-input" value={form.reference || ""} onChange={event => set("reference", event.target.value)} /></div><div className="form-group"><label className="form-label">Désignation *</label><input required className="form-input" value={form.name || ""} onChange={event => set("name", event.target.value)} /></div></div><div className="form-grid"><div className="form-group"><label className="form-label">Catégorie</label><select className="form-input form-select" value={form.category} onChange={event => set("category", event.target.value)}>{Object.entries(CATS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></div>{isCartridge && <div className="form-group"><label className="form-label">Type de cartouche</label><select className="form-input form-select" value={form.cartridge_type} onChange={event => set("cartridge_type", event.target.value)}>{Object.entries(CARTRIDGE_TYPES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></div>}</div>{isCartridge && form.cartridge_type === "color" ? <div className="form-group"><label className="form-label">Stock par couleur</label><div className="form-grid">{COLOR_KEYS.map(key => <div className="form-group" key={key}><label className="form-label">{COLORS[key]}</label><input type="number" min="0" className="form-input" value={form.color_stock?.[key] || ""} onChange={event => setColor(key, event.target.value)} /></div>)}</div></div> : <div className="form-group"><label className="form-label">Quantité disponible</label><input type="number" min="0" className="form-input" value={form.initial_qty ?? ""} onChange={event => set("initial_qty", event.target.value)} /></div>}<div className="form-grid"><div className="form-group"><label className="form-label">Imprimantes compatibles</label><input className="form-input" value={form.compatible_printer || ""} onChange={event => set("compatible_printer", event.target.value)} /></div><div className="form-group"><label className="form-label">Seuil d’alerte</label><input type="number" min="0" className="form-input" value={form.minimum_qty || 0} onChange={event => set("minimum_qty", event.target.value)} /></div></div><div className="form-group"><label className="form-label">Fournisseur</label><input className="form-input" value={form.supplier || ""} onChange={event => set("supplier", event.target.value)} /></div></div><div className="modal-footer"><button type="button" className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary">Enregistrer</button></div></form></div></div>;
+
+  async function submit(event) {
+    event.preventDefault();
+    await onSave(form);
+    requestClose(true);
+  }
+
+  return (
+    <div className="modal-overlay" onClick={event => event.target === event.currentTarget && requestClose()}>
+      <div className="modal" style={{ maxWidth: 600 }}>
+        <div className="modal-header">
+          <h3>{item ? "Modifier le consommable" : "Nouveau consommable"}</h3>
+          <button type="button" onClick={() => requestClose()}>×</button>
+        </div>
+        <form onSubmit={submit}>
+          <div className="modal-body">
+            <div className="form-grid">
+              <div className="form-group"><label className="form-label">Référence *</label><input required className="form-input" value={form.reference || ""} onChange={event => set("reference", event.target.value)} /></div>
+              <div className="form-group"><label className="form-label">Désignation *</label><input required className="form-input" value={form.name || ""} onChange={event => set("name", event.target.value)} /></div>
+            </div>
+            <div className="form-grid">
+              <div className="form-group"><label className="form-label">Catégorie</label><select className="form-input form-select" value={form.category} onChange={event => set("category", event.target.value)}>{Object.entries(CATS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></div>
+              {isCartridge && <div className="form-group"><label className="form-label">Type de cartouche</label><select className="form-input form-select" value={form.cartridge_type} onChange={event => set("cartridge_type", event.target.value)}>{Object.entries(CARTRIDGE_TYPES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></div>}
+            </div>
+            {isCartridge && form.cartridge_type === "color" ? <div className="form-group"><label className="form-label">Stock par couleur</label><div className="form-grid">{COLOR_KEYS.map(key => <div className="form-group" key={key}><label className="form-label">{COLORS[key]}</label><input type="number" min="0" className="form-input" value={form.color_stock?.[key] || ""} onChange={event => setColor(key, event.target.value)} /></div>)}</div></div> : <div className="form-group"><label className="form-label">Quantité disponible</label><input type="number" min="0" className="form-input" value={form.initial_qty ?? ""} onChange={event => set("initial_qty", event.target.value)} /></div>}
+            <div className="form-grid"><div className="form-group"><label className="form-label">Imprimantes compatibles</label><input className="form-input" value={form.compatible_printer || ""} onChange={event => set("compatible_printer", event.target.value)} /></div><div className="form-group"><label className="form-label">Seuil d’alerte</label><input type="number" min="0" className="form-input" value={form.minimum_qty || 0} onChange={event => set("minimum_qty", event.target.value)} /></div></div>
+            <div className="form-group"><label className="form-label">Fournisseur</label><input className="form-input" value={form.supplier || ""} onChange={event => set("supplier", event.target.value)} /></div>
+          </div>
+          <div className="modal-footer"><button type="button" className="btn btn-ghost" onClick={() => requestClose()}>Annuler</button><button className="btn btn-primary">Enregistrer</button></div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function StockEntryModal({ entry, assets, departments, onClose, onSave }) {
+  const [form, setForm] = useState({ quantity: "", note: "", asset_id: "", department_id: "" });
+  const requestClose = useFormExitGuard(form, onClose);
+  const set = (key, value) => setForm(current => ({ ...current, [key]: value }));
+
+  async function submit(event) {
+    event.preventDefault();
+    await onSave(entry.id, form);
+    requestClose(true);
+  }
+
+  return (
+    <div className="modal-overlay" onClick={event => event.target === event.currentTarget && requestClose()}>
+      <div className="modal" style={{ maxWidth: 420 }}>
+        <div className="modal-header"><h3>Entrée en stock — {entry.name}</h3><button type="button" onClick={() => requestClose()}>×</button></div>
+        <form onSubmit={submit}>
+          <div className="modal-body">
+            <div className="form-group"><label className="form-label">Quantité reçue *</label><input className="form-input" required min="1" type="number" value={form.quantity} onChange={event => set("quantity", event.target.value)} /></div>
+            <div className="form-group"><label className="form-label">Équipement concerné</label><select className="form-input form-select" value={form.asset_id} onChange={event => set("asset_id", event.target.value)}><option value="">— Aucun —</option>{assets.map(asset => <option key={asset.id} value={asset.id}>{asset.name} ({asset.asset_tag})</option>)}</select></div>
+            <div className="form-group"><label className="form-label">Service concerné</label><select className="form-input form-select" value={form.department_id} onChange={event => set("department_id", event.target.value)}><option value="">— Aucun —</option>{departments.map(department => <option key={department.id} value={department.id}>{department.name}</option>)}</select></div>
+            <div className="form-group"><label className="form-label">Note</label><input className="form-input" value={form.note} onChange={event => set("note", event.target.value)} /></div>
+          </div>
+          <div className="modal-footer"><button type="button" className="btn btn-ghost" onClick={() => requestClose()}>Annuler</button><button className="btn btn-primary">Ajouter au stock</button></div>
+        </form>
+      </div>
+    </div>
+  );
 }
 
 export default function Consumables() {
@@ -79,6 +142,6 @@ export default function Consumables() {
       <MovementHistory rows={report.recent} />
     </>}
     {modal !== null && <Modal item={modal.id ? modal : null} onClose={() => setModal(null)} onSave={async form => { modal.id ? await api.consumables.update(modal.id, form) : await api.consumables.create(form); load(); }} />}
-    {entry && <div className="modal-overlay"><div className="modal" style={{ maxWidth: 420 }}><div className="modal-header"><h3>Entrée en stock — {entry.name}</h3></div><form onSubmit={async event => { event.preventDefault(); const data = new FormData(event.currentTarget); await api.consumables.entry(entry.id, { quantity: data.get("quantity"), note: data.get("note"), asset_id: data.get("asset_id"), department_id: data.get("department_id") }); setEntry(null); load(); }}><div className="modal-body"><div className="form-group"><label className="form-label">Quantité reçue *</label><input className="form-input" required name="quantity" type="number" min="1" /></div><div className="form-group"><label className="form-label">Équipement concerné</label><select className="form-input form-select" name="asset_id"><option value="">— Aucun —</option>{assets.map(asset => <option key={asset.id} value={asset.id}>{asset.name} ({asset.asset_tag})</option>)}</select></div><div className="form-group"><label className="form-label">Service concerné</label><select className="form-input form-select" name="department_id"><option value="">— Aucun —</option>{meta.departments.map(department => <option key={department.id} value={department.id}>{department.name}</option>)}</select></div><div className="form-group"><label className="form-label">Note</label><input className="form-input" name="note" /></div></div><div className="modal-footer"><button type="button" className="btn btn-ghost" onClick={() => setEntry(null)}>Annuler</button><button className="btn btn-primary">Ajouter au stock</button></div></form></div></div>}
+    {entry && <StockEntryModal entry={entry} assets={assets} departments={meta.departments} onClose={() => setEntry(null)} onSave={async (id, form) => { await api.consumables.entry(id, form); load(); }} />}
   </Layout>;
 }

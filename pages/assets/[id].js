@@ -5,6 +5,7 @@ import { useMaintenances } from "../../hooks/useMaintenances";
 import { useAssignments } from "../../hooks/useAssignments";
 import { useAlerts } from "../../hooks/useAlerts";
 import { useMeta } from "../../hooks/useMeta";
+import { useFormExitGuard } from "../../hooks/useFormExitGuard";
 import { useState } from "react";
 import AssignmentTimeline from "../../components/AssignmentTimeline";
 import { downloadExcel, printReport } from "../../lib/reportExport";
@@ -26,12 +27,13 @@ function initials(name){return(name||"?").split(" ").map(n=>n[0]).join("").slice
 function MaintModal({assetId,meta,maint,onClose,onSave}){
   const [form,setForm]=useState(maint||{asset_id:assetId,type:"preventive",status:"planned"});
   const [loading,setLoad]=useState(false);
+  const requestClose=useFormExitGuard(form,onClose);
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
-  async function submit(e){e.preventDefault();setLoad(true);try{await onSave(form);onClose();}catch(err){alert(err.message);}finally{setLoad(false);}}
+  async function submit(e){e.preventDefault();setLoad(true);try{await onSave(form);requestClose(true);}catch(err){alert(err.message);}finally{setLoad(false);}}
   return(
-    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&requestClose()}>
       <div className="modal">
-        <div className="modal-header"><h3>{maint?"Modifier l'intervention":"Nouvelle intervention"}</h3><button onClick={onClose} style={{background:"none",border:"none",color:"var(--text2)",cursor:"pointer",fontSize:20}}>×</button></div>
+        <div className="modal-header"><h3>{maint?"Modifier l'intervention":"Nouvelle intervention"}</h3><button type="button" onClick={()=>requestClose()} style={{background:"none",border:"none",color:"var(--text2)",cursor:"pointer",fontSize:20}}>×</button></div>
         <form onSubmit={submit}>
           <div className="modal-body">
             <div className="form-group"><label className="form-label">Titre *</label><input className="form-input" required value={form.title||""} onChange={e=>set("title",e.target.value)}/></div>
@@ -58,7 +60,7 @@ function MaintModal({assetId,meta,maint,onClose,onSave}){
             <div className="form-group"><label className="form-label">Notes de résolution</label><textarea className="form-input" value={form.resolution_notes||""} onChange={e=>set("resolution_notes",e.target.value)}/></div>
           </div>
           <div className="modal-footer">
-            <button type="button" className="btn btn-ghost" onClick={onClose}>Annuler</button>
+            <button type="button" className="btn btn-ghost" onClick={()=>requestClose()}>Annuler</button>
             <button type="submit" className="btn btn-primary" disabled={loading}>{loading?"Enregistrement...":"Enregistrer"}</button>
           </div>
         </form>

@@ -5,6 +5,7 @@ import { useMaintenances } from "../../hooks/useMaintenances";
 import { useAlerts } from "../../hooks/useAlerts";
 import { useMeta } from "../../hooks/useMeta";
 import { useAssets } from "../../hooks/useAssets";
+import { useFormExitGuard } from "../../hooks/useFormExitGuard";
 import { api } from "../../lib/api";
 import { PLANNING_2025, MONTH_NAMES, weekToDate, entryEndDate } from "../../lib/planningData";
 import { downloadExcel, printReport } from "../../lib/reportExport";
@@ -27,6 +28,7 @@ function MaintModal({ maintenance, onClose, onSave, assets, meta }) {
   } : { type:"preventive", status:"planned" });
   const [loading, setLoad] = useState(false);
   const [error, setError]  = useState("");
+  const requestClose = useFormExitGuard(form, onClose);
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
 
   async function submit(e) {
@@ -47,7 +49,7 @@ function MaintModal({ maintenance, onClose, onSave, assets, meta }) {
         completed_at: form.status === "completed" ? n(form.completed_at) : null,
         source: "manual",
       });
-      onClose();
+      requestClose(true);
     } catch(err) { setError(err.message); }
     finally { setLoad(false); }
   }
@@ -55,11 +57,11 @@ function MaintModal({ maintenance, onClose, onSave, assets, meta }) {
   const depts = meta.deptsBySite(form.site_filter);
 
   return (
-    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&requestClose()}>
       <div className="modal">
         <div className="modal-header">
           <h3>{isEdit ? "Modifier la maintenance" : "Nouvelle maintenance"}</h3>
-          <button onClick={onClose} style={{background:"none",border:"none",color:"var(--text2)",cursor:"pointer",fontSize:20}}>×</button>
+          <button type="button" onClick={()=>requestClose()} style={{background:"none",border:"none",color:"var(--text2)",cursor:"pointer",fontSize:20}}>×</button>
         </div>
         <form onSubmit={submit}>
           <div className="modal-body">
@@ -132,7 +134,7 @@ function MaintModal({ maintenance, onClose, onSave, assets, meta }) {
             </div>
           </div>
           <div className="modal-footer">
-            <button type="button" className="btn btn-ghost" onClick={onClose}>Annuler</button>
+            <button type="button" className="btn btn-ghost" onClick={()=>requestClose()}>Annuler</button>
             <button type="submit" className="btn btn-primary" disabled={loading}>{loading?"Enregistrement...":isEdit?"Modifier":"Créer"}</button>
           </div>
         </form>
