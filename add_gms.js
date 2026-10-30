@@ -1,32 +1,40 @@
 const { getDb, initDb } = require('./lib/db');
 
-async function addGMS() {
+async function addCommercialDepartments() {
   try {
     await initDb();
     const db = getDb();
     
-    // Récupérer le site "Commercial"
-    const sitesResult = await db.execute("SELECT id FROM sites WHERE name = 'Commercial'");
-    if (sitesResult.rows.length === 0) {
+    const siteResult = await db.execute({
+      sql: "SELECT id FROM sites WHERE name = ?",
+      args: ['Commercial'],
+    });
+    if (siteResult.rows.length === 0) {
       console.log('❌ Site Commercial non trouvé');
       return;
     }
     
-    const siteId = sitesResult.rows[0].id;
+    const siteId = siteResult.rows[0].id;
     
-    // Vérifier si GMS existe déjà
-    const existing = await db.execute({ sql: "SELECT id FROM departments WHERE name = 'GMS'", args: [] });
-    if (existing.rows.length > 0) {
-      console.log('✓ GMS est déjà présent dans la base');
-      return;
+    for (const departmentName of ['GMS', 'Magasin Produit Fini']) {
+      const existing = await db.execute({
+        sql: "SELECT id FROM departments WHERE site_id = ? AND name = ?",
+        args: [siteId, departmentName],
+      });
+      if (existing.rows.length > 0) {
+        console.log(`✓ ${departmentName} est déjà présent sur le site Commercial`);
+        continue;
+      }
+
+      await db.execute({
+        sql: "INSERT INTO departments (site_id, name) VALUES (?, ?)",
+        args: [siteId, departmentName],
+      });
+      console.log(`✓ ${departmentName} ajouté avec succès au site Commercial`);
     }
-    
-    // Insérer GMS
-    await db.execute({ sql: "INSERT INTO departments (site_id, name) VALUES (?,?)", args: [siteId, 'GMS'] });
-    console.log('✓ GMS ajouté avec succès au site Commercial');
   } catch (err) {
     console.error('❌ Erreur:', err.message);
   }
 }
 
-addGMS();
+addCommercialDepartments();
