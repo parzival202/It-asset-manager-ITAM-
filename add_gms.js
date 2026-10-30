@@ -7,7 +7,7 @@ async function addDepartments() {
 
     const departmentsBySite = {
       Commercial: ['GMS', 'Magasin Produit Fini'],
-      Plastique: ['Ressources Humaines'],
+      Plastique: ['Ressources Humaines', 'Audit Logistique'],
     };
 
     for (const [siteName, departmentNames] of Object.entries(departmentsBySite)) {
